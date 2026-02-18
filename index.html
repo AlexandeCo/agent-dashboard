@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #161b27;
+      --surface2: #1e2535;
+      --border: #2a3349;
+      --text: #e2e8f0;
+      --text-dim: #8892a4;
+      --text-faint: #4a5568;
+      --active: #22c55e;
+      --recent: #f59e0b;
+      --idle: #4a5568;
+      --aborted: #ef4444;
+      --accent: #6366f1;
+      --accent-dim: #3730a3;
+      --main-badge: #7c3aed;
+      --discord-badge: #5865f2;
+      --isolated-badge: #0891b2;
+      --other-badge: #374151;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo span { font-size: 22px; }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--idle);
+      transition: background 0.3s;
+    }
+    .live-dot.connected { background: var(--active); animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .agent-count {
+      font-size: 12px;
+      color: var(--text-dim);
+      background: var(--surface2);
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .view-btn {
+      padding: 6px 14px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .view-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .view-btn:hover:not(.active) { color: var(--text); background: var(--border); }
+
+    /* ── Main ── */
+    main {
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h2 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+
+    /* ── List View ── */
+    #list-view { display: none; }
+    #list-view.active { display: block; }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-faint);
+      margin-bottom: 12px;
+    }
+
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .agent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .agent-card:hover {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 1px var(--accent-dim);
+    }
+    .agent-card.expanded { border-color: var(--accent); }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .status-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .status-dot.active { background: var(--active); box-shadow: 0 0 6px var(--active); animation: pulse 2s infinite; }
+    .status-dot.recent { background: var(--recent); }
+    .status-dot.idle { background: var(--idle); }
+    .status-dot.aborted { background: var(--aborted); }
+
+    .card-title-group { flex: 1; min-width: 0; }
+    .card-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-main { background: var(--main-badge); color: #e9d5ff; }
+    .badge-discord { background: var(--discord-badge); color: #c7d2fe; }
+    .badge-isolated { background: var(--isolated-badge); color: #cffafe; }
+    .badge-other { background: var(--other-badge); color: var(--text-dim); }
+
+    .model-tag {
+      font-size: 10px;
+      color: var(--text-faint);
+      font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+
+    .card-timestamp {
+      font-size: 11px;
+      color: var(--text-faint);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .token-bar-wrap {
+      margin-bottom: 10px;
+    }
+    .token-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-faint);
+      margin-bottom: 3px;
+    }
+    .token-bar-bg {
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .token-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #818cf8);
+      border-radius: 2px;
+      transition: width 0.4s;
+    }
+
+    .activity-block {
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      border-left: 2px solid var(--border);
+    }
+    .activity-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-faint);
+      margin-bottom: 4px;
+    }
+    .activity-text {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .activity-user { border-left-color: var(--accent); }
+    .activity-assistant { border-left-color: #374151; margin-top: 6px; }
+
+    /* Expanded messages panel */
+    .messages-panel {
+      display: none;
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .agent-card.expanded .messages-panel { display: block; }
+
+    .message-item {
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .message-item.user {
+      background: var(--accent-dim);
+      color: #c7d2fe;
+      border-left: 2px solid var(--accent);
+    }
+    .message-item.assistant {
+      background: var(--surface2);
+      color: var(--text-dim);
+      border-left: 2px solid var(--border);
+    }
+    .message-role {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.7;
+      margin-bottom: 3px;
+    }
+    .message-text {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+    }
+    .message-ts {
+      font-size: 10px;
+      opacity: 0.5;
+      margin-top: 3px;
+    }
+
+    .load-more-btn {
+      width: 100%;
+      padding: 8px;
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-faint);
+      cursor: pointer;
+      font-size: 11px;
+      margin-top: 8px;
+      transition: all 0.15s;
+    }
+    .load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Org Chart View ── */
+    #org-view { display: none; }
+    #org-view.active { display: block; }
+
+    .org-tree {
+      overflow-x: auto;
+      padding: 24px 0;
+    }
+
+    .org-level {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      position: relative;
+      margin-bottom: 0;
+    }
+
+    .org-level + .org-level { margin-top: 48px; }
+
+    /* Connector lines between levels */
+    .org-connector {
+      display: flex;
+      justify-content: center;
+      height: 48px;
+      position: relative;
+    }
+    .org-connector::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+    .org-connector-spread {
+      position: absolute;
+      top: 24px;
+      left: 0; right: 0;
+      height: 1px;
+      background: var(--border);
+    }
+    .org-connector-down {
+      position: absolute;
+      top: 24px;
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+
+    .org-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      min-width: 220px;
+      max-width: 280px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+    .org-node:hover {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 1px var(--accent-dim), var(--shadow);
+    }
+    .org-node.is-root {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 12px rgba(99,102,241,0.15);
+    }
+
+    .org-node-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .org-node-name {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .org-node-detail {
+      font-size: 11px;
+      color: var(--text-faint);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 4px;
+    }
+    .org-node-activity {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Children wrapper with tree lines */
+    .org-children-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .org-stem {
+      width: 1px;
+      height: 32px;
+      background: var(--border);
+    }
+
+    .org-children {
+      display: flex;
+      gap: 20px;
+      position: relative;
+      padding-top: 0;
+    }
+
+    /* Draw horizontal bar above children */
+    .org-children::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: calc(50% - 50%);
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Only show line when multiple children */
+    .org-children.single::before { display: none; }
+
+    .org-child-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .org-child-stem {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      header { padding: 0 16px; }
+      .agents-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span>🦉</span> Agent Dashboard
+  </div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="live-label">connecting...</span>
+    </div>
+    <div class="agent-count" id="agent-count">0 agents</div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-list" onclick="switchView('list')">
+        ☰ List
+      </button>
+      <button class="view-btn" id="btn-org" onclick="switchView('org')">
+        ⬡ Org Chart
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="list-view" class="active">
+    <div id="agents-container">
+      <div class="empty-state">
+        <div class="icon">🔄</div>
+        <h2>Loading agents...</h2>
+      </div>
+    </div>
+  </div>
+
+  <div id="org-view">
+    <div id="org-container">
+      <div class="empty-state">
+        <div class="icon">🔄</div>
+        <h2>Loading...</h2>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  // ─── State ────────────────────────────────────────────────────────────────
+  let sessions = [];
+  let expandedCards = new Set();
+
+  // ─── Utils ────────────────────────────────────────────────────────────────
+  function relativeTime(ts) {
+    if (!ts) return 'never';
+    const now = Date.now();
+    const diff = now - (typeof ts === 'string' ? new Date(ts).getTime() : ts);
+    if (diff < 60_000) return 'just now';
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
+    return `${Math.floor(diff / 86400_000)}d ago`;
+  }
+
+  function statusLabel(status) {
+    return { active: 'Active', recent: 'Recent', idle: 'Idle', aborted: 'Failed' }[status] || status;
+  }
+
+  function typeBadge(type) {
+    const cls = { main: 'badge-main', discord: 'badge-discord', isolated: 'badge-isolated' }[type] || 'badge-other';
+    return `<span class="badge ${cls}">${type}</span>`;
+  }
+
+  function shortModel(model) {
+    return (model || '').replace('claude-', '').replace(/-\d+$/, '').replace(/-/g, ' ');
+  }
+
+  function fmtTokens(n) {
+    if (!n) return '0';
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return String(n);
+  }
+
+  function truncate(str, len) {
+    if (!str) return '';
+    return str.length > len ? str.slice(0, len) + '…' : str;
+  }
+
+  // ─── List View ─────────────────────────────────────────────────────────────
+  function renderListView() {
+    const container = document.getElementById('agents-container');
+    if (!sessions.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🤖</div>
+          <h2>No agents found</h2>
+          <p>No OpenClaw sessions detected at ~/.openclaw/agents/main/sessions/</p>
+        </div>`;
+      return;
+    }
+
+    // Group by type
+    const groups = { main: [], discord: [], isolated: [], other: [] };
+    for (const s of sessions) {
+      (groups[s.type] || groups.other).push(s);
+    }
+
+    const groupLabels = { main: 'Core Sessions', discord: 'Discord Sessions', isolated: 'Sub-Agents', other: 'Other' };
+    let html = '';
+
+    for (const [type, items] of Object.entries(groups)) {
+      if (!items.length) continue;
+      html += `<p class="section-title">${groupLabels[type]} (${items.length})</p>`;
+      html += `<div class="agents-grid">`;
+      for (const s of items) html += renderCard(s);
+      html += `</div>`;
+    }
+
+    container.innerHTML = html;
+
+    // Restore expanded states & bind click handlers
+    for (const s of sessions) {
+      const card = document.getElementById(`card-${s.sessionId}`);
+      if (!card) continue;
+      if (expandedCards.has(s.sessionId)) card.classList.add('expanded');
+      card.addEventListener('click', () => toggleCard(s));
+    }
+  }
+
+  function renderCard(s) {
+    const { key, sessionId, displayName, type, status, model, updatedAt, tokens, lastActivity, aborted } = s;
+    const usePct = tokens.context ? Math.min(100, (tokens.total / tokens.context) * 100) : 0;
+
+    const userMsg = truncate(lastActivity?.userMessage, 90);
+    const assistantSnippet = truncate(lastActivity?.assistantSnippet, 130);
+    const lastTs = lastActivity?.timestamp || updatedAt;
+
+    return `
+    <div class="agent-card" id="card-${sessionId}">
+      <div class="card-header">
+        <div class="status-dot ${status}"></div>
+        <div class="card-title-group">
+          <div class="card-name">${escHtml(displayName)}</div>
+          <div class="card-meta">
+            ${typeBadge(type)}
+            <span class="model-tag">${shortModel(model)}</span>
+          </div>
+        </div>
+        <div class="card-timestamp">${relativeTime(lastTs)}</div>
+      </div>
+
+      ${tokens.total > 0 ? `
+      <div class="token-bar-wrap">
+        <div class="token-bar-label">
+          <span>${fmtTokens(tokens.total)} tokens used</span>
+          <span>${tokens.context ? fmtTokens(tokens.context) + ' ctx' : ''}</span>
+        </div>
+        <div class="token-bar-bg"><div class="token-bar-fill" style="width:${usePct}%"></div></div>
+      </div>` : ''}
+
+      ${userMsg ? `
+      <div class="activity-block activity-user">
+        <div class="activity-label">Last request</div>
+        <div class="activity-text">${escHtml(userMsg)}</div>
+      </div>` : ''}
+
+      ${assistantSnippet ? `
+      <div class="activity-block activity-assistant">
+        <div class="activity-label">Last response</div>
+        <div class="activity-text">${escHtml(assistantSnippet)}</div>
+      </div>` : ''}
+
+      <div class="messages-panel" id="msgs-${sessionId}">
+        <div style="color:var(--text-faint);font-size:12px;">Loading messages...</div>
+      </div>
+    </div>`;
+  }
+
+  async function toggleCard(s) {
+    const card = document.getElementById(`card-${s.sessionId}`);
+    if (!card) return;
+    const wasExpanded = expandedCards.has(s.sessionId);
+
+    if (wasExpanded) {
+      expandedCards.delete(s.sessionId);
+      card.classList.remove('expanded');
+    } else {
+      expandedCards.add(s.sessionId);
+      card.classList.add('expanded');
+      await loadMessages(s.sessionId);
+    }
+  }
+
+  async function loadMessages(sessionId, limit = 15) {
+    const panel = document.getElementById(`msgs-${sessionId}`);
+    if (!panel) return;
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}`);
+      const messages = await res.json();
+      if (!messages.length) {
+        panel.innerHTML = '<div style="color:var(--text-faint);font-size:12px;">No messages yet</div>';
+        return;
+      }
+      panel.innerHTML = messages.map(m => `
+        <div class="message-item ${m.role}">
+          <div class="message-role">${m.role}</div>
+          <div class="message-text">${escHtml(truncate(m.text, 500))}</div>
+          ${m.timestamp ? `<div class="message-ts">${relativeTime(m.timestamp)}</div>` : ''}
+        </div>
+      `).join('') + `
+        <button class="load-more-btn" onclick="loadMoreMessages('${sessionId}', ${limit + 20})">
+          Load more messages
+        </button>`;
+    } catch {
+      panel.innerHTML = '<div style="color:var(--aborted);font-size:12px;">Failed to load messages</div>';
+    }
+  }
+
+  window.loadMoreMessages = (sessionId, limit) => loadMessages(sessionId, limit);
+
+  // ─── Org Chart View ─────────────────────────────────────────────────────────
+  function renderOrgView() {
+    const container = document.getElementById('org-container');
+    if (!sessions.length) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">🤖</div><h2>No agents found</h2></div>`;
+      return;
+    }
+
+    // Build tree
+    const byKey = {};
+    for (const s of sessions) byKey[s.key] = s;
+
+    const roots = sessions.filter(s => !s.parentKey);
+    const childMap = {};
+    for (const s of sessions) {
+      if (s.parentKey) {
+        if (!childMap[s.parentKey]) childMap[s.parentKey] = [];
+        childMap[s.parentKey].push(s);
+      }
+    }
+
+    function renderNode(s, isRoot = false) {
+      const children = childMap[s.key] || [];
+      const { sessionId, displayName, type, status, tokens, lastActivity, model } = s;
+      const snippet = lastActivity?.userMessage || lastActivity?.assistantSnippet || '';
+
+      const nodeHtml = `
+        <div class="org-node ${isRoot ? 'is-root' : ''}" onclick="orgNodeClick('${sessionId}')">
+          <div class="org-node-header">
+            <div class="status-dot ${status}"></div>
+            <div class="org-node-name">${escHtml(displayName)}</div>
+            ${typeBadge(type)}
+          </div>
+          <div class="org-node-detail">${shortModel(model)} · ${fmtTokens(tokens.total)} tokens</div>
+          <div class="org-node-detail">${statusLabel(status)} · ${relativeTime(lastActivity?.timestamp || s.updatedAt)}</div>
+          ${snippet ? `<div class="org-node-activity">${escHtml(truncate(snippet, 100))}</div>` : ''}
+        </div>`;
+
+      if (!children.length) {
+        return `<div class="org-child-branch">
+          <div class="org-child-stem"></div>
+          ${nodeHtml}
+        </div>`;
+      }
+
+      const childrenHtml = `
+        <div class="org-children-wrapper">
+          <div class="org-stem"></div>
+          <div class="org-children ${children.length === 1 ? 'single' : ''}">
+            ${children.map(c => renderNode(c)).join('')}
+          </div>
+        </div>`;
+
+      return `
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          ${isRoot ? `<div style="padding-bottom:0">` : '<div class="org-child-branch"><div class="org-child-stem">'}
+          ${nodeHtml}
+          ${isRoot ? '' : '</div>'}
+          ${childrenHtml}
+          ${isRoot ? '' : ''}
+        </div>`;
+    }
+
+    const treesHtml = roots.map(r => renderNode(r, true)).join('<div style="width:40px"></div>');
+
+    container.innerHTML = `
+      <div class="org-tree">
+        <div style="display:flex;justify-content:center;gap:40px;flex-wrap:wrap;">
+          ${treesHtml}
+        </div>
+      </div>`;
+  }
+
+  window.orgNodeClick = (sessionId) => {
+    switchView('list');
+    setTimeout(() => {
+      const card = document.getElementById(`card-${sessionId}`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.boxShadow = '0 0 0 2px var(--accent)';
+        setTimeout(() => card.style.boxShadow = '', 2000);
+      }
+    }, 100);
+  };
+
+  // ─── View switching ─────────────────────────────────────────────────────────
+  window.switchView = (view) => {
+    document.getElementById('list-view').classList.toggle('active', view === 'list');
+    document.getElementById('org-view').classList.toggle('active', view === 'org');
+    document.getElementById('btn-list').classList.toggle('active', view === 'list');
+    document.getElementById('btn-org').classList.toggle('active', view === 'org');
+    if (view === 'org') renderOrgView();
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  function render(data) {
+    sessions = data;
+    const count = sessions.length;
+    document.getElementById('agent-count').textContent = `${count} agent${count !== 1 ? 's' : ''}`;
+    renderListView();
+    // If org view is active, re-render it too
+    if (document.getElementById('org-view').classList.contains('active')) renderOrgView();
+  }
+
+  // ─── SSE ────────────────────────────────────────────────────────────────────
+  function connect() {
+    const dot = document.getElementById('live-dot');
+    const label = document.getElementById('live-label');
+
+    const es = new EventSource('/events');
+
+    es.addEventListener('session-update', e => {
+      const data = JSON.parse(e.data);
+      render(data);
+    });
+
+    es.onopen = () => {
+      dot.className = 'live-dot connected';
+      label.textContent = 'live';
+    };
+
+    es.onerror = () => {
+      dot.className = 'live-dot';
+      label.textContent = 'reconnecting...';
+      es.close();
+      setTimeout(connect, 3000);
+    };
+  }
+
+  // ─── HTML escaping ──────────────────────────────────────────────────────────
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ─── Boot ────────────────────────────────────────────────────────────────────
+  connect();
+
+  // Refresh relative timestamps every 30s
+  setInterval(() => {
+    if (sessions.length) renderListView();
+  }, 30_000);
+</script>
+</body>
+</html>
