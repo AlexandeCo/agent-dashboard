@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  agent-dashboard:
+    build: .
+    ports:
+      - "4242:4242"
+    volumes:
+      - ${OPENCLAW_DIR:-~/.openclaw}/agents/main/sessions:/data/sessions:ro
+      - ./org.json:/app/org.json

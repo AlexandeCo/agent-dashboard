@@ -46,7 +46,8 @@ function friendlyName(key, meta, sessionType) {
 const app = express();
 const PORT = 4242;
 
-const SESSIONS_DIR = path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
+const SESSIONS_DIR = process.env.OPENCLAW_SESSIONS_DIR
+  || path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
 const SESSIONS_JSON = path.join(SESSIONS_DIR, 'sessions.json');
 
 // SSE clients
