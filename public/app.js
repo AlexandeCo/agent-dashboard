@@ -1,0 +1,700 @@
+/* ═══════════════════════════════════════════════════════
+   State
+═══════════════════════════════════════════════════════ */
+let allSessions  = [];
+let selectedKey  = null;
+let currentView  = 'list';
+
+/* ═══════════════════════════════════════════════════════
+   View toggle
+═══════════════════════════════════════════════════════ */
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${view}`).classList.add('active');
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-${view}`).classList.add('active');
+  if (view === 'org') renderOrgChart(allSessions);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Utilities
+═══════════════════════════════════════════════════════ */
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = Date.now() - (typeof ts === 'string' ? new Date(ts).getTime() : ts);
+  const s = Math.floor(diff / 1000);
+  if (s < 5)  return 'just now';
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function fmtNum(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function getStatus(s) {
+  if (s.isActive) return 'active';
+  const ago = Date.now() - (s.updatedAt || 0);
+  if (ago < 5 * 60 * 1000) return 'recent';
+  return 'idle';
+}
+
+function getStatusLabel(s) {
+  const st = getStatus(s);
+  if (st === 'active') return 'Running';
+  if (st === 'recent') return 'Recent';
+  return 'Idle';
+}
+
+function getAvatar(s) {
+  if (s.sessionType === 'channel') {
+    const ch = s.channel || '';
+    if (ch.includes('discord'))  return '💬';
+    if (ch.includes('telegram')) return '✈️';
+    if (ch.includes('signal'))   return '🔒';
+    return '📡';
+  }
+  if (s.sessionType === 'subagent') return '🤖';
+  return '🦞';
+}
+
+function getDisplayName(s) {
+  if (s.label) return s.label;
+  if (s.displayName) return s.displayName;
+  if (s.sessionType === 'channel') return s.channel || 'Channel';
+  if (s.sessionType === 'subagent') {
+    const id = s.key ? s.key.split(':').pop()?.slice(0, 8) : '?';
+    return `Sub-agent ${id}`;
+  }
+  return 'Main Session';
+}
+
+function getModelShort(s) {
+  if (!s.model) return null;
+  return s.model.split('/').pop();
+}
+
+/** Returns { text, kind } — kind: 'tool' | 'thinking' | 'assistant' | 'user' | 'empty' */
+function getActivity(s) {
+  const a = s.activity;
+  if (!a) return { kind: 'empty', text: 'No recent activity' };
+
+  if (s.isActive && a.isThinking) {
+    return { kind: 'thinking', text: 'Thinking…' };
+  }
+  if (s.isActive && a.lastToolCall?.name) {
+    return { kind: 'tool', text: a.lastToolCall.name, ts: a.lastToolCall.timestamp };
+  }
+  if (a.lastAssistantMsg?.text) {
+    return { kind: 'assistant', text: a.lastAssistantMsg.text };
+  }
+  if (a.lastUserMsg?.text) {
+    return { kind: 'user', text: a.lastUserMsg.text };
+  }
+  return { kind: 'empty', text: 'No recent activity' };
+}
+
+function truncate(str, max = 80) {
+  if (!str) return '';
+  str = String(str);
+  return str.length > max ? str.slice(0, max) + '…' : str;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Sidebar
+═══════════════════════════════════════════════════════ */
+function renderSidebar(sessions) {
+  const el = document.getElementById('agent-list');
+  document.getElementById('agent-count').textContent = sessions.length;
+
+  // Update live dot
+  const hasActive = sessions.some(s => s.isActive);
+  const dot = document.getElementById('live-dot');
+  dot.classList.toggle('is-live', hasActive);
+
+  if (!sessions.length) {
+    el.innerHTML = '<div style="padding:20px 10px;font-size:12px;color:var(--text-dim);text-align:center">No agents running</div>';
+    return;
+  }
+
+  el.innerHTML = sessions.map(s => {
+    const status   = getStatus(s);
+    const name     = getDisplayName(s);
+    const typeLabel = s.sessionType;
+    const activity = getActivity(s);
+    const isSelected = s.key === selectedKey;
+
+    let subText = '';
+    if (status === 'active' && activity.kind === 'tool') {
+      subText = `⚡ ${truncate(activity.text, 28)}`;
+    } else if (status === 'active') {
+      subText = 'Running…';
+    } else {
+      subText = timeAgo(s.updatedAt);
+    }
+
+    return `
+      <div class="agent-row${isSelected ? ' selected' : ''}" onclick="selectAgent('${escHtml(s.key)}')">
+        <div class="agent-row-dot dot-${status}"></div>
+        <div class="agent-row-info">
+          <div class="agent-row-name">${escHtml(name)}</div>
+          <div class="agent-row-sub">${escHtml(subText)}</div>
+        </div>
+        <div class="agent-row-badge badge-${s.sessionType}">${typeLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   Main Grid
+═══════════════════════════════════════════════════════ */
+function renderGrid(sessions) {
+  const el = document.getElementById('agent-grid');
+
+  // Update header pill
+  const activeCount = sessions.filter(s => s.isActive).length;
+  const pill = document.getElementById('header-active-count');
+  pill.textContent = activeCount > 0 ? `${activeCount} active` : '';
+  pill.className   = activeCount > 0 ? 'header-pill' : 'header-pill header-pill-neutral';
+
+  // Update last-updated
+  document.getElementById('last-updated').textContent = `Updated ${timeAgo(Date.now())}`;
+
+  // Empty state
+  if (!sessions.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🦞</div>
+        <h2 class="empty-title">No agents running</h2>
+        <p class="empty-desc">
+          OpenClaw agents will show up here in real time when active.
+          Start a conversation in Discord or kick off a session to see them appear.
+        </p>
+        <div class="empty-tip">
+          <code>openclaw chat</code>
+          <code>openclaw system event</code>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  el.innerHTML = sessions.map(s => renderCard(s)).join('');
+}
+
+function renderCard(s) {
+  const status   = getStatus(s);
+  const name     = getDisplayName(s);
+  const avatar   = getAvatar(s);
+  const model    = getModelShort(s);
+  const activity = getActivity(s);
+
+  // Activity section markup
+  let activityHtml = '';
+  if (activity.kind === 'thinking') {
+    activityHtml = `
+      <div class="activity-header">
+        <span class="activity-label">Thinking</span>
+        <span class="thinking-indicator">
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+        </span>
+      </div>
+      <div class="activity-text" style="font-style:italic;color:var(--text-dim)">Processing…</div>
+    `;
+  } else if (activity.kind === 'tool') {
+    activityHtml = `
+      <div class="activity-header">
+        <span class="activity-label">Tool call</span>
+      </div>
+      <div class="activity-tool">⚡ ${escHtml(activity.text)}</div>
+    `;
+  } else if (activity.kind === 'assistant') {
+    activityHtml = `
+      <div class="activity-header">
+        <span class="activity-label">Assistant</span>
+      </div>
+      <div class="activity-text">${escHtml(truncate(activity.text, 120))}</div>
+    `;
+  } else if (activity.kind === 'user') {
+    activityHtml = `
+      <div class="activity-header">
+        <span class="activity-label">Last message</span>
+      </div>
+      <div class="activity-text">${escHtml(truncate(activity.text, 120))}</div>
+    `;
+  } else {
+    activityHtml = `
+      <div class="activity-header">
+        <span class="activity-label">Activity</span>
+      </div>
+      <div class="activity-text" style="color:var(--text-dim);font-style:italic">No recent activity</div>
+    `;
+  }
+
+  // Type subtitle
+  let typeStr = s.sessionType;
+  if (model) typeStr += ` · ${model}`;
+  if (s.spawnDepth > 0) typeStr += ` · depth ${s.spawnDepth}`;
+
+  return `
+    <div class="agent-card" onclick="selectAgent('${escHtml(s.key)}')">
+      <div class="card-status-bar ${status}-bar"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-avatar avatar-${s.sessionType}">${avatar}</div>
+          <div class="card-meta">
+            <div class="card-name">${escHtml(name)}</div>
+            <div class="card-type">${escHtml(typeStr)}</div>
+          </div>
+          <div class="card-status-badge status-badge-${status}">
+            <div class="badge-dot"></div>
+            ${getStatusLabel(s)}
+          </div>
+        </div>
+
+        <div class="card-activity">${activityHtml}</div>
+
+        <div class="card-stats">
+          <div class="stat">
+            <div class="stat-value">${fmtNum(s.totalTokens)}</div>
+            <div class="stat-label">Tokens</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${timeAgo(s.updatedAt)}</div>
+            <div class="stat-label">Updated</div>
+          </div>
+          ${s.sessionType !== 'main' && s.parentKey ? `
+            <div class="stat">
+              <div class="stat-value" style="font-size:11px">${escHtml(truncate(s.parentKey.split(':').pop() || '', 10))}</div>
+              <div class="stat-label">Parent</div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Org Chart (D3)
+═══════════════════════════════════════════════════════ */
+function renderOrgChart(sessions) {
+  const svg = d3.select('#org-svg');
+  svg.selectAll('*').remove();
+
+  const container = document.querySelector('.org-chart-container');
+  const W = container.clientWidth || 800;
+  const H = container.clientHeight || 600;
+
+  // Build tree
+  const root = {
+    id: '__root__', name: 'OpenClaw Gateway',
+    type: 'root', children: [],
+  };
+  const nodeMap = { '__root__': root };
+
+  for (const s of sessions) {
+    nodeMap[s.key] = {
+      id: s.key, name: getDisplayName(s),
+      type: s.sessionType, session: s, children: [],
+    };
+  }
+
+  for (const s of sessions) {
+    const node = nodeMap[s.key];
+    if (s.parentKey && nodeMap[s.parentKey]) {
+      nodeMap[s.parentKey].children.push(node);
+    } else {
+      root.children.push(node);
+    }
+  }
+
+  const NODE_W = 224;
+  const NODE_H = 88;
+  const SPACING_X = NODE_W + 40;
+  const SPACING_Y = NODE_H + 56;
+
+  const g = svg.append('g').attr('transform', `translate(${W / 2},50)`);
+
+  const treeLayout = d3.tree().nodeSize([SPACING_X, SPACING_Y]);
+  const hierarchy  = d3.hierarchy(root);
+  treeLayout(hierarchy);
+
+  // Gradient defs
+  const defs = svg.append('defs');
+  [
+    { id: 'grad-active',  c1: '#22c55e', c2: 'rgba(34,197,94,0)' },
+    { id: 'grad-recent',  c1: '#f59e0b', c2: 'rgba(245,158,11,0)' },
+    { id: 'grad-idle',    c1: '#3f3f46', c2: 'rgba(63,63,70,0)' },
+    { id: 'grad-root',    c1: '#3b82f6', c2: 'rgba(59,130,246,0)' },
+  ].forEach(({ id, c1, c2 }) => {
+    const grad = defs.append('linearGradient')
+      .attr('id', id)
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '100%').attr('y2', '0%');
+    grad.append('stop').attr('offset', '0%').attr('stop-color', c1);
+    grad.append('stop').attr('offset', '100%').attr('stop-color', c2);
+  });
+
+  // Links
+  g.selectAll('.org-link')
+    .data(hierarchy.links())
+    .join('path')
+    .attr('class', 'org-link')
+    .attr('d', d3.linkVertical().x(d => d.x).y(d => d.y))
+    .attr('stroke', '#27272a')
+    .attr('stroke-width', 1.5)
+    .attr('fill', 'none');
+
+  // Node groups
+  const node = g.selectAll('.org-node')
+    .data(hierarchy.descendants())
+    .join('g')
+    .attr('class', 'org-node')
+    .attr('transform', d => `translate(${d.data.id === '__root__' ? 0 : d.x},${d.y})`)
+    .style('cursor', 'pointer')
+    .on('click', (event, d) => {
+      if (d.data.session) selectAgent(d.data.session.key);
+    });
+
+  // Card background
+  node.append('rect')
+    .attr('x', -NODE_W / 2).attr('y', -NODE_H / 2)
+    .attr('width', NODE_W).attr('height', NODE_H)
+    .attr('rx', 10)
+    .attr('fill', d => {
+      if (d.data.id === '__root__') return '#111114';
+      const s = d.data.session;
+      if (!s) return '#111114';
+      const st = getStatus(s);
+      if (st === 'active') return 'rgba(34,197,94,0.05)';
+      return '#111114';
+    })
+    .attr('stroke', d => {
+      if (d.data.id === '__root__') return '#3b82f6';
+      const s = d.data.session;
+      if (!s) return '#27272a';
+      const st = getStatus(s);
+      if (st === 'active') return 'rgba(34,197,94,0.35)';
+      if (st === 'recent') return 'rgba(245,158,11,0.3)';
+      return '#27272a';
+    })
+    .attr('stroke-width', 1.5);
+
+  // Hover effect via JS (SVG hover)
+  node.on('mouseover', function(event, d) {
+    d3.select(this).select('rect').attr('fill', d => {
+      if (d.data.id === '__root__') return '#18181b';
+      const s = d.data.session;
+      if (!s) return '#18181b';
+      const st = getStatus(s);
+      if (st === 'active') return 'rgba(34,197,94,0.09)';
+      return '#18181b';
+    });
+  }).on('mouseout', function(event, d) {
+    d3.select(this).select('rect').attr('fill', d => {
+      if (d.data.id === '__root__') return '#111114';
+      const s = d.data.session;
+      if (!s) return '#111114';
+      const st = getStatus(s);
+      if (st === 'active') return 'rgba(34,197,94,0.05)';
+      return '#111114';
+    });
+  });
+
+  // Top accent bar (2px)
+  node.append('rect')
+    .attr('x', -NODE_W / 2).attr('y', -NODE_H / 2)
+    .attr('width', NODE_W).attr('height', 2)
+    .attr('rx', 10)
+    .attr('fill', d => {
+      if (d.data.id === '__root__') return 'url(#grad-root)';
+      const s = d.data.session;
+      if (!s) return 'url(#grad-idle)';
+      const st = getStatus(s);
+      if (st === 'active') return 'url(#grad-active)';
+      if (st === 'recent') return 'url(#grad-recent)';
+      return 'url(#grad-idle)';
+    });
+
+  // Status dot (top-right)
+  node.filter(d => d.data.id !== '__root__').append('circle')
+    .attr('cx', NODE_W / 2 - 14)
+    .attr('cy', -NODE_H / 2 + 14)
+    .attr('r', 4.5)
+    .attr('fill', d => {
+      const s = d.data.session;
+      if (!s) return '#52525b';
+      const st = getStatus(s);
+      if (st === 'active') return '#22c55e';
+      if (st === 'recent') return '#f59e0b';
+      return '#52525b';
+    });
+
+  // Emoji avatar
+  node.append('text')
+    .attr('x', -NODE_W / 2 + 20)
+    .attr('y', 6)
+    .attr('font-size', 20)
+    .attr('text-anchor', 'middle')
+    .text(d => {
+      if (d.data.id === '__root__') return '🦞';
+      return d.data.session ? getAvatar(d.data.session) : '?';
+    });
+
+  // Agent name
+  node.append('text')
+    .attr('x', -NODE_W / 2 + 40)
+    .attr('y', -NODE_H / 2 + 22)
+    .attr('fill', '#fafafa')
+    .attr('font-family', "'Inter', sans-serif")
+    .attr('font-size', 13)
+    .attr('font-weight', 600)
+    .attr('letter-spacing', '-0.3px')
+    .text(d => {
+      const name = d.data.name || d.data.id;
+      return truncate(name, 20);
+    });
+
+  // Type + model row
+  node.append('text')
+    .attr('x', -NODE_W / 2 + 40)
+    .attr('y', -NODE_H / 2 + 37)
+    .attr('fill', '#71717a')
+    .attr('font-family', "'Inter', sans-serif")
+    .attr('font-size', 10.5)
+    .text(d => {
+      if (d.data.id === '__root__') return 'gateway · openclaw';
+      const s = d.data.session;
+      if (!s) return '';
+      const model = getModelShort(s) || s.sessionType;
+      return `${s.sessionType} · ${model}`;
+    });
+
+  // Activity snippet
+  node.filter(d => d.data.id !== '__root__').append('text')
+    .attr('x', -NODE_W / 2 + 12)
+    .attr('y', NODE_H / 2 - 26)
+    .attr('fill', '#52525b')
+    .attr('font-family', "'Inter', sans-serif")
+    .attr('font-size', 10)
+    .attr('font-style', 'italic')
+    .text(d => {
+      const s = d.data.session;
+      if (!s) return '';
+      const act = getActivity(s);
+      if (act.kind === 'thinking') return 'Thinking…';
+      if (act.kind === 'tool')     return `⚡ ${truncate(act.text, 28)}`;
+      if (act.text && act.kind !== 'empty') return truncate(act.text, 30);
+      return 'No recent activity';
+    });
+
+  // Token count (bottom right)
+  node.filter(d => d.data.id !== '__root__').append('text')
+    .attr('x', NODE_W / 2 - 12)
+    .attr('y', NODE_H / 2 - 10)
+    .attr('fill', '#3f3f46')
+    .attr('font-family', "'JetBrains Mono', monospace")
+    .attr('font-size', 9.5)
+    .attr('text-anchor', 'end')
+    .text(d => {
+      const s = d.data.session;
+      if (!s) return '';
+      return `${fmtNum(s.totalTokens)} tok`;
+    });
+
+  // Zoom + pan
+  const zoom = d3.zoom()
+    .scaleExtent([0.2, 2.5])
+    .on('zoom', (event) => {
+      g.attr('transform', `translate(${W / 2 + event.transform.x},${50 + event.transform.y}) scale(${event.transform.k})`);
+    });
+
+  svg.call(zoom);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Detail Panel
+═══════════════════════════════════════════════════════ */
+function selectAgent(key) {
+  selectedKey = key;
+  const s = allSessions.find(s => s.key === key);
+
+  // Update sidebar highlights
+  document.querySelectorAll('.agent-row').forEach(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    el.classList.toggle('selected', onclick.includes(`'${key}'`));
+  });
+
+  if (!s) { closeDetail(); return; }
+
+  const status   = getStatus(s);
+  const avatar   = getAvatar(s);
+  const name     = getDisplayName(s);
+  const model    = getModelShort(s);
+  const a        = s.activity;
+
+  // Conversation messages
+  const messages = [];
+  if (a?.lastUserMsg?.text)      messages.push({ role: 'user',      ...a.lastUserMsg });
+  if (a?.lastAssistantMsg?.text) messages.push({ role: 'assistant', ...a.lastAssistantMsg });
+
+  const toolSection = a?.lastToolCall ? `
+    <div class="detail-section">
+      <div class="detail-section-label">Last Tool Call</div>
+      <div class="detail-tool-call">
+        <span class="tool-call-icon">⚡</span>
+        <div class="tool-call-body">
+          <div class="tool-call-name">${escHtml(a.lastToolCall.name)}</div>
+          <div class="tool-call-time">${timeAgo(a.lastToolCall.timestamp)}</div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  const html = `
+    <div class="detail-header">
+      <button class="detail-close-btn" onclick="closeDetail()" title="Close">✕</button>
+      <div class="detail-agent-avatar">${avatar}</div>
+      <div class="detail-name">${escHtml(name)}</div>
+      <div class="detail-key mono">${escHtml(s.key)}</div>
+      <div class="detail-badges">
+        <span class="detail-badge badge-status-${status}">${getStatusLabel(s)}</span>
+        ${model ? `<span class="detail-badge badge-model">${escHtml(model)}</span>` : ''}
+        ${s.spawnDepth > 0 ? `<span class="detail-badge" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)">depth ${s.spawnDepth}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-label">Stats</div>
+      <div class="detail-stats-grid">
+        <div class="detail-stat">
+          <div class="detail-stat-value">${fmtNum(s.totalTokens)}</div>
+          <div class="detail-stat-label">Total tokens</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-value">${timeAgo(s.updatedAt)}</div>
+          <div class="detail-stat-label">Last active</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-value">${fmtNum(s.inputTokens)}</div>
+          <div class="detail-stat-label">Input tokens</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-value">${fmtNum(s.outputTokens)}</div>
+          <div class="detail-stat-label">Output tokens</div>
+        </div>
+      </div>
+    </div>
+
+    ${toolSection}
+
+    <div class="detail-section">
+      <div class="detail-section-label">Conversation</div>
+      <div class="detail-messages">
+        ${messages.length === 0
+          ? '<p class="no-messages">No messages captured yet</p>'
+          : messages.map(m => `
+            <div class="msg-bubble">
+              <div class="bubble-role role-${m.role}">
+                ${m.role === 'user' ? '↑ User' : '↓ Assistant'}
+              </div>
+              <div class="bubble-body">${escHtml(m.text)}</div>
+              <div class="bubble-time">${timeAgo(m.timestamp)}</div>
+            </div>
+          `).join('')
+        }
+      </div>
+    </div>
+  `;
+
+  document.getElementById('detail-content').innerHTML = html;
+}
+
+function closeDetail() {
+  selectedKey = null;
+  document.querySelectorAll('.agent-row').forEach(el => el.classList.remove('selected'));
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-empty">
+      <div class="detail-empty-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect x="4" y="8" width="24" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M4 13h24" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="8.5" cy="10.5" r="1" fill="currentColor"/>
+          <circle cx="12" cy="10.5" r="1" fill="currentColor"/>
+        </svg>
+      </div>
+      <p>Select an agent to inspect</p>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Data Fetching
+═══════════════════════════════════════════════════════ */
+async function fetchSessions() {
+  try {
+    const res  = await fetch('/api/sessions');
+    allSessions = await res.json();
+    renderSidebar(allSessions);
+    renderGrid(allSessions);
+    if (currentView === 'org') renderOrgChart(allSessions);
+    if (selectedKey) selectAgent(selectedKey);
+  } catch (e) {
+    console.error('Failed to fetch sessions:', e);
+  }
+}
+
+function connectSSE() {
+  const src = new EventSource('/api/events');
+
+  src.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'sessions') {
+        allSessions = msg.data;
+        renderSidebar(allSessions);
+        renderGrid(allSessions);
+        if (currentView === 'org') renderOrgChart(allSessions);
+        if (selectedKey) selectAgent(selectedKey);
+      }
+    } catch {}
+  };
+
+  src.onerror = () => {
+    src.close();
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+/* ═══════════════════════════════════════════════════════
+   Init
+═══════════════════════════════════════════════════════ */
+fetchSessions();
+connectSSE();
+
+// Refresh time-ago labels every 30s
+setInterval(() => {
+  renderSidebar(allSessions);
+  renderGrid(allSessions);
+}, 30000);
