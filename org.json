@@ -78,6 +78,26 @@
       "specialty": "UI/UX · Frontend · Visual systems"
     },
     {
+      "id": "quill",
+      "name": "Quill",
+      "role": "QA Lead",
+      "emoji": "🔬",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/quill",
+      "parentId": "iris",
+      "specialty": "Testing · Quality · Bug hunting"
+    },
+    {
+      "id": "vault",
+      "name": "Vault",
+      "role": "Security Lead",
+      "emoji": "🔐",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/vault",
+      "parentId": "iris",
+      "specialty": "SecOps · Code audits · Threat modeling"
+    },
+    {
       "id": "mara",
       "name": "Mara",
       "role": "CMO",
