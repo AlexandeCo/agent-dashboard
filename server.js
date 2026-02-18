@@ -331,69 +331,99 @@ function loadExecProcesses() {
 }
 
 // Load org chart config + merge with live sessions
-const ORG_CONFIG = path.join(__dirname, 'org.json');
+const ORG_CONFIG    = path.join(__dirname, 'org.json');
+const DISMISS_FILE  = path.join(__dirname, 'dismissed.json');
 
 function loadOrg() {
-  try {
-    return JSON.parse(fs.readFileSync(ORG_CONFIG, 'utf8'));
-  } catch { return { nodes: [] }; }
+  try { return JSON.parse(fs.readFileSync(ORG_CONFIG, 'utf8')); }
+  catch { return { nodes: [] }; }
+}
+
+function loadDismissed() {
+  try { return new Set(JSON.parse(fs.readFileSync(DISMISS_FILE, 'utf8'))); }
+  catch { return new Set(); }
+}
+
+function saveDismissed(set) {
+  fs.writeFileSync(DISMISS_FILE, JSON.stringify([...set], null, 2));
 }
 
 async function loadOrgWithStatus() {
-  const org = loadOrg();
-  const sessions = await loadSessions();
+  const org       = loadOrg();
+  const sessions  = await loadSessions();
+  const dismissed = loadDismissed();
 
-  // Map sessions by label and agentKey for fast lookup
-  const byLabel = {};
+  // Build lookup maps
   const byKey = {};
+  // For label: collect ALL sessions per label (multiple runs of same agent)
+  const byLabel = {};
   for (const s of sessions) {
-    if (s.label) byLabel[s.label.toLowerCase()] = s;
-    if (s.key) byKey[s.key] = s;
+    byKey[s.key] = s;
+    if (s.label) {
+      const lk = s.label.toLowerCase();
+      if (!byLabel[lk]) byLabel[lk] = [];
+      byLabel[lk].push(s);
+    }
   }
 
-  // Enrich org nodes with live session data
+  // Set of all org node names (lowercase) — used to suppress ghost duplicates
+  const orgNodeNames = new Set(org.nodes.map(n => n.name.toLowerCase()));
+
+  // Enrich org nodes with most-recent live session data
   const nodes = org.nodes.map(node => {
     let liveSession = null;
     if (node.agentKey) liveSession = byKey[node.agentKey];
-    if (!liveSession && node.name) liveSession = byLabel[node.name.toLowerCase()];
-
+    if (!liveSession && node.name) {
+      const candidates = byLabel[node.name.toLowerCase()] || [];
+      // Pick most recently updated session for this named agent
+      liveSession = candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+    }
     return {
       ...node,
-      isActive: liveSession?.isActive || false,
-      isThinking: liveSession?.isThinking || false,
-      sessionKey: liveSession?.key || null,
-      model: liveSession?.model || null,
-      totalTokens: liveSession?.totalTokens || 0,
-      updatedAt: liveSession?.updatedAt || null,
-      currentTask: liveSession?.activity?.currentTask?.text || null,
+      isActive:     liveSession?.isActive    || false,
+      isThinking:   liveSession?.isThinking  || false,
+      sessionKey:   liveSession?.key         || null,
+      model:        liveSession?.model       || null,
+      totalTokens:  liveSession?.totalTokens || 0,
+      updatedAt:    liveSession?.updatedAt   || null,
+      currentTask:  liveSession?.activity?.currentTask?.text  || null,
       lastToolCall: liveSession?.activity?.lastToolCall?.name || null,
-      recentTools: liveSession?.activity?.recentTools || [],
+      recentTools:  liveSession?.activity?.recentTools        || [],
     };
   });
 
-  // Also append any live sessions not in the org chart (ad-hoc subagents)
-  const orgSessionKeys = new Set(nodes.map(n => n.sessionKey).filter(Boolean));
+  // All session keys already claimed by org nodes
+  const claimedKeys = new Set(nodes.map(n => n.sessionKey).filter(Boolean));
+
+  // Extra sessions: truly ad-hoc (not matching any org node name or key, not dismissed)
   const extraSessions = sessions.filter(s =>
-    !orgSessionKeys.has(s.key) && s.sessionType === 'subagent'
+    s.sessionType === 'subagent' &&
+    !claimedKeys.has(s.key) &&
+    !orgNodeNames.has((s.label || '').toLowerCase()) &&
+    !orgNodeNames.has((s.displayName || '').toLowerCase()) &&
+    !dismissed.has(s.key)
   );
 
   const extraNodes = extraSessions.map(s => ({
-    id: s.key,
-    name: s.displayName,
-    role: s.role || 'Sub-agent',
-    emoji: '🤖',
-    type: 'agent',
-    parentId: s.parentKey ? (nodes.find(n => n.sessionKey === s.parentKey)?.id || 'ferdinand') : 'ferdinand',
-    isActive: s.isActive,
-    isThinking: s.isThinking,
-    sessionKey: s.key,
-    model: s.model,
-    totalTokens: s.totalTokens,
-    updatedAt: s.updatedAt,
-    currentTask: s.activity?.currentTask?.text || null,
+    id:           s.key,
+    name:         s.displayName,
+    role:         s.role || 'Sub-agent',
+    emoji:        '🤖',
+    type:         'agent',
+    parentId:     s.parentKey
+                    ? (nodes.find(n => n.sessionKey === s.parentKey)?.id || 'ferdinand')
+                    : 'ferdinand',
+    isActive:     s.isActive,
+    isThinking:   s.isThinking,
+    sessionKey:   s.key,
+    model:        s.model,
+    totalTokens:  s.totalTokens,
+    updatedAt:    s.updatedAt,
+    currentTask:  s.activity?.currentTask?.text  || null,
     lastToolCall: s.activity?.lastToolCall?.name || null,
-    recentTools: s.activity?.recentTools || [],
-    ephemeral: true,
+    recentTools:  s.activity?.recentTools        || [],
+    ephemeral:    true,
+    canDismiss:   true,
   }));
 
   return { nodes: [...nodes, ...extraNodes], sessions };
@@ -408,6 +438,17 @@ app.get('/api/sessions', async (req, res) => {
 
 app.get('/api/org', async (req, res) => {
   res.json(await loadOrgWithStatus());
+});
+
+// Dismiss an ephemeral sub-agent from the dashboard
+app.post('/api/dismiss/:sessionKey', express.json(), async (req, res) => {
+  const key = decodeURIComponent(req.params.sessionKey);
+  const dismissed = loadDismissed();
+  dismissed.add(key);
+  saveDismissed(dismissed);
+  const org = await loadOrgWithStatus();
+  broadcast({ type: 'org', data: org });
+  res.json({ ok: true });
 });
 
 app.get('/api/processes', (req, res) => {

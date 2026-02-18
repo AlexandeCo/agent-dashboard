@@ -968,3 +968,64 @@ code, .mono {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── Dismiss button ─────────────────────────────── */
+.card-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  z-index: 10;
+}
+
+.agent-card {
+  position: relative;
+}
+
+.agent-card:hover .card-dismiss {
+  opacity: 1;
+}
+
+.card-dismiss:hover {
+  background: rgba(231, 76, 60, 0.15);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+}
+
+/* Dismiss in sidebar row */
+.agent-row-dismiss {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 9px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.agent-row:hover .agent-row-dismiss {
+  display: flex;
+}
+
+.agent-row-dismiss:hover {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}

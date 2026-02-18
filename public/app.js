@@ -151,6 +151,7 @@ function renderSidebar(sessions) {
       subText = timeAgo(s.updatedAt);
     }
 
+    const canDismiss = s.sessionType === 'subagent' && !s.isActive;
     return `
       <div class="agent-row${isSelected ? ' selected' : ''}" onclick="selectAgent('${escHtml(s.key)}')">
         <div class="agent-row-dot dot-${status}"></div>
@@ -159,6 +160,7 @@ function renderSidebar(sessions) {
           <div class="agent-row-sub">${escHtml(subText)}</div>
         </div>
         <div class="agent-row-badge badge-${s.sessionType}">${typeLabel}</div>
+        ${canDismiss ? `<button class="agent-row-dismiss" title="Dismiss" onclick="event.stopPropagation(); dismissAgent('${escHtml(s.key)}')">✕</button>` : ''}
       </div>
     `;
   }).join('');
@@ -257,9 +259,14 @@ function renderCard(s) {
   if (model) typeStr += ` · ${model}`;
   if (s.spawnDepth > 0) typeStr += ` · depth ${s.spawnDepth}`;
 
+  const canDismiss = s.sessionType === 'subagent' && !s.isActive;
+
   return `
     <div class="agent-card" onclick="selectAgent('${escHtml(s.key)}')">
       <div class="card-status-bar ${status}-bar"></div>
+      ${canDismiss ? `
+        <button class="card-dismiss" title="Dismiss agent" onclick="event.stopPropagation(); dismissAgent('${escHtml(s.key)}')">✕</button>
+      ` : ''}
       <div class="card-body">
         <div class="card-header">
           <div class="card-avatar avatar-${s.sessionType}">${avatar}</div>
@@ -580,6 +587,24 @@ function closeDetail() {
       <p>Select an agent to inspect</p>
     </div>
   `;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Dismiss Agent
+═══════════════════════════════════════════════════════ */
+async function dismissAgent(key) {
+  try {
+    await fetch(`/api/dismiss/${encodeURIComponent(key)}`, { method: 'POST' });
+    if (selectedKey === key) closeDetail();
+    // Optimistic UI: remove from local state immediately
+    allSessions = allSessions.filter(s => s.key !== key);
+    if (orgData) orgData.nodes = orgData.nodes.filter(n => n.sessionKey !== key && n.id !== key);
+    renderSidebar(allSessions);
+    renderGrid(allSessions);
+    if (currentView === 'org') renderOrgChart(orgData);
+  } catch (e) {
+    console.error('Dismiss failed:', e);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
