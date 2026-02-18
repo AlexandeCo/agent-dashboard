@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "cody",
+      "name": "Cody",
+      "role": "CEO",
+      "emoji": "👤",
+      "type": "human",
+      "parentId": null
+    },
+    {
+      "id": "ferdinand",
+      "name": "Ferdinand",
+      "role": "Chief of Staff",
+      "emoji": "🦉",
+      "type": "agent",
+      "agentKey": "agent:main:main",
+      "parentId": "cody"
+    },
+    {
+      "id": "pixel",
+      "name": "Pixel",
+      "role": "Design Lead",
+      "emoji": "🎨",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/pixel",
+      "parentId": "ferdinand",
+      "specialty": "UI/UX · Frontend"
+    },
+    {
+      "id": "slate",
+      "name": "Slate",
+      "role": "Backend Lead",
+      "emoji": "🖥️",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/slate",
+      "parentId": "ferdinand",
+      "specialty": "APIs · Data · Infrastructure"
+    }
+  ]
+}

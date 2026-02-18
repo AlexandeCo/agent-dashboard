@@ -330,11 +330,84 @@ function loadExecProcesses() {
   return processes;
 }
 
+// Load org chart config + merge with live sessions
+const ORG_CONFIG = path.join(__dirname, 'org.json');
+
+function loadOrg() {
+  try {
+    return JSON.parse(fs.readFileSync(ORG_CONFIG, 'utf8'));
+  } catch { return { nodes: [] }; }
+}
+
+async function loadOrgWithStatus() {
+  const org = loadOrg();
+  const sessions = await loadSessions();
+
+  // Map sessions by label and agentKey for fast lookup
+  const byLabel = {};
+  const byKey = {};
+  for (const s of sessions) {
+    if (s.label) byLabel[s.label.toLowerCase()] = s;
+    if (s.key) byKey[s.key] = s;
+  }
+
+  // Enrich org nodes with live session data
+  const nodes = org.nodes.map(node => {
+    let liveSession = null;
+    if (node.agentKey) liveSession = byKey[node.agentKey];
+    if (!liveSession && node.name) liveSession = byLabel[node.name.toLowerCase()];
+
+    return {
+      ...node,
+      isActive: liveSession?.isActive || false,
+      isThinking: liveSession?.isThinking || false,
+      sessionKey: liveSession?.key || null,
+      model: liveSession?.model || null,
+      totalTokens: liveSession?.totalTokens || 0,
+      updatedAt: liveSession?.updatedAt || null,
+      currentTask: liveSession?.activity?.currentTask?.text || null,
+      lastToolCall: liveSession?.activity?.lastToolCall?.name || null,
+      recentTools: liveSession?.activity?.recentTools || [],
+    };
+  });
+
+  // Also append any live sessions not in the org chart (ad-hoc subagents)
+  const orgSessionKeys = new Set(nodes.map(n => n.sessionKey).filter(Boolean));
+  const extraSessions = sessions.filter(s =>
+    !orgSessionKeys.has(s.key) && s.sessionType === 'subagent'
+  );
+
+  const extraNodes = extraSessions.map(s => ({
+    id: s.key,
+    name: s.displayName,
+    role: s.role || 'Sub-agent',
+    emoji: '🤖',
+    type: 'agent',
+    parentId: s.parentKey ? (nodes.find(n => n.sessionKey === s.parentKey)?.id || 'ferdinand') : 'ferdinand',
+    isActive: s.isActive,
+    isThinking: s.isThinking,
+    sessionKey: s.key,
+    model: s.model,
+    totalTokens: s.totalTokens,
+    updatedAt: s.updatedAt,
+    currentTask: s.activity?.currentTask?.text || null,
+    lastToolCall: s.activity?.lastToolCall?.name || null,
+    recentTools: s.activity?.recentTools || [],
+    ephemeral: true,
+  }));
+
+  return { nodes: [...nodes, ...extraNodes], sessions };
+}
+
 // Routes
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/sessions', async (req, res) => {
   res.json(await loadSessions());
+});
+
+app.get('/api/org', async (req, res) => {
+  res.json(await loadOrgWithStatus());
 });
 
 app.get('/api/processes', (req, res) => {
@@ -368,8 +441,9 @@ let debounceTimer = null;
 async function onSessionChange() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
-    const sessions = await loadSessions();
+    const [sessions, org] = await Promise.all([loadSessions(), loadOrgWithStatus()]);
     broadcast({ type: 'sessions', data: sessions });
+    broadcast({ type: 'org', data: org });
   }, 300);
 }
 

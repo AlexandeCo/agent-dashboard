@@ -2,6 +2,7 @@
    State
 ═══════════════════════════════════════════════════════ */
 let allSessions  = [];
+let orgData      = null;   // { nodes: [...] } from /api/org
 let selectedKey  = null;
 let currentView  = 'list';
 
@@ -14,7 +15,7 @@ function setView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`btn-${view}`).classList.add('active');
-  if (view === 'org') renderOrgChart(allSessions);
+  if (view === 'org') renderOrgChart(orgData);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -296,65 +297,62 @@ function renderCard(s) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Org Chart (D3)
+   Org Chart (uses /api/org with pre-enriched nodes)
 ═══════════════════════════════════════════════════════ */
-function renderOrgChart(sessions) {
+function renderOrgChart(org) {
   const svg = d3.select('#org-svg');
   svg.selectAll('*').remove();
+
+  const nodes = org?.nodes || [];
+  if (!nodes.length) {
+    svg.append('text')
+      .attr('x', '50%').attr('y', '50%')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#52525b')
+      .attr('font-size', 14)
+      .text('No org data available');
+    return;
+  }
 
   const container = document.querySelector('.org-chart-container');
   const W = container.clientWidth || 800;
   const H = container.clientHeight || 600;
 
-  // Build tree
-  const root = {
-    id: '__root__', name: 'OpenClaw Gateway',
-    type: 'root', children: [],
-  };
-  const nodeMap = { '__root__': root };
+  // Build D3 hierarchy from parentId links
+  const nodeMap = {};
+  for (const n of nodes) nodeMap[n.id] = { ...n, children: [] };
 
-  for (const s of sessions) {
-    nodeMap[s.key] = {
-      id: s.key, name: getDisplayName(s),
-      type: s.sessionType, session: s, children: [],
-    };
-  }
-
-  for (const s of sessions) {
-    const node = nodeMap[s.key];
-    if (s.parentKey && nodeMap[s.parentKey]) {
-      nodeMap[s.parentKey].children.push(node);
+  let root = null;
+  for (const n of nodes) {
+    if (n.parentId && nodeMap[n.parentId]) {
+      nodeMap[n.parentId].children.push(nodeMap[n.id]);
     } else {
-      root.children.push(node);
+      root = nodeMap[n.id];
     }
   }
+  if (!root) return;
 
-  const NODE_W = 224;
-  const NODE_H = 88;
-  const SPACING_X = NODE_W + 40;
-  const SPACING_Y = NODE_H + 56;
+  const NODE_W = 220;
+  const NODE_H = 90;
 
-  const g = svg.append('g').attr('transform', `translate(${W / 2},50)`);
+  const g = svg.append('g').attr('transform', `translate(${W / 2}, 60)`);
 
-  const treeLayout = d3.tree().nodeSize([SPACING_X, SPACING_Y]);
-  const hierarchy  = d3.hierarchy(root);
-  treeLayout(hierarchy);
-
-  // Gradient defs
   const defs = svg.append('defs');
   [
-    { id: 'grad-active',  c1: '#22c55e', c2: 'rgba(34,197,94,0)' },
-    { id: 'grad-recent',  c1: '#f59e0b', c2: 'rgba(245,158,11,0)' },
-    { id: 'grad-idle',    c1: '#3f3f46', c2: 'rgba(63,63,70,0)' },
-    { id: 'grad-root',    c1: '#3b82f6', c2: 'rgba(59,130,246,0)' },
+    { id: 'go-active', c1: '#22c55e', c2: 'transparent' },
+    { id: 'go-recent', c1: '#f59e0b', c2: 'transparent' },
+    { id: 'go-idle',   c1: '#3f3f46', c2: 'transparent' },
+    { id: 'go-human',  c1: '#6366f1', c2: 'transparent' },
   ].forEach(({ id, c1, c2 }) => {
-    const grad = defs.append('linearGradient')
-      .attr('id', id)
-      .attr('x1', '0%').attr('y1', '0%')
-      .attr('x2', '100%').attr('y2', '0%');
-    grad.append('stop').attr('offset', '0%').attr('stop-color', c1);
-    grad.append('stop').attr('offset', '100%').attr('stop-color', c2);
+    const grad = defs.append('linearGradient').attr('id', id)
+      .attr('x1','0%').attr('y1','0%').attr('x2','100%').attr('y2','0%');
+    grad.append('stop').attr('offset','0%').attr('stop-color', c1);
+    grad.append('stop').attr('offset','100%').attr('stop-color', c2);
   });
+
+  const treeLayout = d3.tree().nodeSize([NODE_W + 40, NODE_H + 60]);
+  const hierarchy  = d3.hierarchy(root, d => d.children);
+  treeLayout(hierarchy);
 
   // Links
   g.selectAll('.org-link')
@@ -366,170 +364,105 @@ function renderOrgChart(sessions) {
     .attr('stroke-width', 1.5)
     .attr('fill', 'none');
 
-  // Node groups
-  const node = g.selectAll('.org-node')
+  // Nodes
+  const nodeG = g.selectAll('.org-node')
     .data(hierarchy.descendants())
     .join('g')
     .attr('class', 'org-node')
-    .attr('transform', d => `translate(${d.data.id === '__root__' ? 0 : d.x},${d.y})`)
-    .style('cursor', 'pointer')
-    .on('click', (event, d) => {
-      if (d.data.session) selectAgent(d.data.session.key);
-    });
+    .attr('transform', d => `translate(${d.x}, ${d.y})`)
+    .style('cursor', d => d.data.sessionKey ? 'pointer' : 'default')
+    .on('click', (e, d) => { if (d.data.sessionKey) selectAgent(d.data.sessionKey); });
 
-  // Card background
-  node.append('rect')
-    .attr('x', -NODE_W / 2).attr('y', -NODE_H / 2)
+  const statusColor = d => {
+    if (d.data.type === 'human') return '#6366f1';
+    if (d.data.isActive) return '#22c55e';
+    if (d.data.updatedAt && Date.now() - d.data.updatedAt < 300000) return '#f59e0b';
+    return '#52525b';
+  };
+
+  const gradId = d => {
+    if (d.data.type === 'human') return 'url(#go-human)';
+    if (d.data.isActive) return 'url(#go-active)';
+    if (d.data.updatedAt && Date.now() - d.data.updatedAt < 300000) return 'url(#go-recent)';
+    return 'url(#go-idle)';
+  };
+
+  // Card bg
+  nodeG.append('rect')
+    .attr('x', -NODE_W/2).attr('y', -NODE_H/2)
     .attr('width', NODE_W).attr('height', NODE_H)
     .attr('rx', 10)
-    .attr('fill', d => {
-      if (d.data.id === '__root__') return '#111114';
-      const s = d.data.session;
-      if (!s) return '#111114';
-      const st = getStatus(s);
-      if (st === 'active') return 'rgba(34,197,94,0.05)';
-      return '#111114';
-    })
+    .attr('fill', d => d.data.isActive ? 'rgba(34,197,94,0.05)' : '#111114')
     .attr('stroke', d => {
-      if (d.data.id === '__root__') return '#3b82f6';
-      const s = d.data.session;
-      if (!s) return '#27272a';
-      const st = getStatus(s);
-      if (st === 'active') return 'rgba(34,197,94,0.35)';
-      if (st === 'recent') return 'rgba(245,158,11,0.3)';
+      if (d.data.type === 'human') return 'rgba(99,102,241,0.5)';
+      if (d.data.isActive) return 'rgba(34,197,94,0.35)';
       return '#27272a';
     })
     .attr('stroke-width', 1.5);
 
-  // Hover effect via JS (SVG hover)
-  node.on('mouseover', function(event, d) {
-    d3.select(this).select('rect').attr('fill', d => {
-      if (d.data.id === '__root__') return '#18181b';
-      const s = d.data.session;
-      if (!s) return '#18181b';
-      const st = getStatus(s);
-      if (st === 'active') return 'rgba(34,197,94,0.09)';
-      return '#18181b';
-    });
-  }).on('mouseout', function(event, d) {
-    d3.select(this).select('rect').attr('fill', d => {
-      if (d.data.id === '__root__') return '#111114';
-      const s = d.data.session;
-      if (!s) return '#111114';
-      const st = getStatus(s);
-      if (st === 'active') return 'rgba(34,197,94,0.05)';
-      return '#111114';
-    });
-  });
-
-  // Top accent bar (2px)
-  node.append('rect')
-    .attr('x', -NODE_W / 2).attr('y', -NODE_H / 2)
+  // Top accent bar
+  nodeG.append('rect')
+    .attr('x', -NODE_W/2).attr('y', -NODE_H/2)
     .attr('width', NODE_W).attr('height', 2)
-    .attr('rx', 10)
-    .attr('fill', d => {
-      if (d.data.id === '__root__') return 'url(#grad-root)';
-      const s = d.data.session;
-      if (!s) return 'url(#grad-idle)';
-      const st = getStatus(s);
-      if (st === 'active') return 'url(#grad-active)';
-      if (st === 'recent') return 'url(#grad-recent)';
-      return 'url(#grad-idle)';
-    });
+    .attr('rx', 1)
+    .attr('fill', d => gradId(d));
 
-  // Status dot (top-right)
-  node.filter(d => d.data.id !== '__root__').append('circle')
-    .attr('cx', NODE_W / 2 - 14)
-    .attr('cy', -NODE_H / 2 + 14)
+  // Status dot (agents only)
+  nodeG.filter(d => d.data.type !== 'human').append('circle')
+    .attr('cx', NODE_W/2 - 14).attr('cy', -NODE_H/2 + 14)
     .attr('r', 4.5)
-    .attr('fill', d => {
-      const s = d.data.session;
-      if (!s) return '#52525b';
-      const st = getStatus(s);
-      if (st === 'active') return '#22c55e';
-      if (st === 'recent') return '#f59e0b';
-      return '#52525b';
-    });
+    .attr('fill', d => statusColor(d));
 
   // Emoji avatar
-  node.append('text')
-    .attr('x', -NODE_W / 2 + 20)
-    .attr('y', 6)
-    .attr('font-size', 20)
-    .attr('text-anchor', 'middle')
-    .text(d => {
-      if (d.data.id === '__root__') return '🦞';
-      return d.data.session ? getAvatar(d.data.session) : '?';
-    });
+  nodeG.append('text')
+    .attr('x', -NODE_W/2 + 20).attr('y', 6)
+    .attr('font-size', 22).attr('text-anchor', 'middle')
+    .text(d => d.data.emoji || '🤖');
 
-  // Agent name
-  node.append('text')
-    .attr('x', -NODE_W / 2 + 40)
-    .attr('y', -NODE_H / 2 + 22)
+  // Name
+  nodeG.append('text')
+    .attr('x', -NODE_W/2 + 40).attr('y', -NODE_H/2 + 22)
     .attr('fill', '#fafafa')
-    .attr('font-family', "'Inter', sans-serif")
-    .attr('font-size', 13)
-    .attr('font-weight', 600)
+    .attr('font-family', 'Inter, sans-serif')
+    .attr('font-size', 13).attr('font-weight', 600)
     .attr('letter-spacing', '-0.3px')
-    .text(d => {
-      const name = d.data.name || d.data.id;
-      return truncate(name, 20);
-    });
+    .text(d => d.data.name || d.data.id);
 
-  // Type + model row
-  node.append('text')
-    .attr('x', -NODE_W / 2 + 40)
-    .attr('y', -NODE_H / 2 + 37)
+  // Role
+  nodeG.append('text')
+    .attr('x', -NODE_W/2 + 40).attr('y', -NODE_H/2 + 36)
     .attr('fill', '#71717a')
-    .attr('font-family', "'Inter', sans-serif")
+    .attr('font-family', 'Inter, sans-serif')
     .attr('font-size', 10.5)
-    .text(d => {
-      if (d.data.id === '__root__') return 'gateway · openclaw';
-      const s = d.data.session;
-      if (!s) return '';
-      const model = getModelShort(s) || s.sessionType;
-      return `${s.sessionType} · ${model}`;
-    });
+    .text(d => d.data.role || d.data.specialty || '');
 
-  // Activity snippet
-  node.filter(d => d.data.id !== '__root__').append('text')
-    .attr('x', -NODE_W / 2 + 12)
-    .attr('y', NODE_H / 2 - 26)
+  // Activity / status line
+  nodeG.append('text')
+    .attr('x', -NODE_W/2 + 12).attr('y', NODE_H/2 - 26)
     .attr('fill', '#52525b')
-    .attr('font-family', "'Inter', sans-serif")
-    .attr('font-size', 10)
-    .attr('font-style', 'italic')
+    .attr('font-family', 'Inter, sans-serif')
+    .attr('font-size', 10).attr('font-style', 'italic')
     .text(d => {
-      const s = d.data.session;
-      if (!s) return '';
-      const act = getActivity(s);
-      if (act.kind === 'thinking') return 'Thinking…';
-      if (act.kind === 'tool')     return `⚡ ${truncate(act.text, 28)}`;
-      if (act.text && act.kind !== 'empty') return truncate(act.text, 30);
-      return 'No recent activity';
+      if (d.data.type === 'human') return 'Human · CEO';
+      if (d.data.isActive && d.data.lastToolCall) return `⚡ ${d.data.lastToolCall}`;
+      if (d.data.currentTask) return truncate(d.data.currentTask, 28);
+      if (d.data.specialty) return d.data.specialty;
+      return d.data.sessionKey ? 'Idle' : 'Not running';
     });
 
-  // Token count (bottom right)
-  node.filter(d => d.data.id !== '__root__').append('text')
-    .attr('x', NODE_W / 2 - 12)
-    .attr('y', NODE_H / 2 - 10)
+  // Token count
+  nodeG.filter(d => d.data.totalTokens > 0).append('text')
+    .attr('x', NODE_W/2 - 12).attr('y', NODE_H/2 - 10)
     .attr('fill', '#3f3f46')
-    .attr('font-family', "'JetBrains Mono', monospace")
-    .attr('font-size', 9.5)
-    .attr('text-anchor', 'end')
-    .text(d => {
-      const s = d.data.session;
-      if (!s) return '';
-      return `${fmtNum(s.totalTokens)} tok`;
-    });
+    .attr('font-family', 'JetBrains Mono, monospace')
+    .attr('font-size', 9.5).attr('text-anchor', 'end')
+    .text(d => `${fmtNum(d.data.totalTokens)} tok`);
 
   // Zoom + pan
-  const zoom = d3.zoom()
-    .scaleExtent([0.2, 2.5])
+  const zoom = d3.zoom().scaleExtent([0.2, 2.5])
     .on('zoom', (event) => {
-      g.attr('transform', `translate(${W / 2 + event.transform.x},${50 + event.transform.y}) scale(${event.transform.k})`);
+      g.attr('transform', `translate(${W/2 + event.transform.x}, ${60 + event.transform.y}) scale(${event.transform.k})`);
     });
-
   svg.call(zoom);
 }
 
@@ -654,14 +587,18 @@ function closeDetail() {
 ═══════════════════════════════════════════════════════ */
 async function fetchSessions() {
   try {
-    const res  = await fetch('/api/sessions');
-    allSessions = await res.json();
+    const [sessRes, orgRes] = await Promise.all([
+      fetch('/api/sessions'),
+      fetch('/api/org'),
+    ]);
+    allSessions = await sessRes.json();
+    orgData     = await orgRes.json();
     renderSidebar(allSessions);
     renderGrid(allSessions);
-    if (currentView === 'org') renderOrgChart(allSessions);
+    if (currentView === 'org') renderOrgChart(orgData);
     if (selectedKey) selectAgent(selectedKey);
   } catch (e) {
-    console.error('Failed to fetch sessions:', e);
+    console.error('Failed to fetch data:', e);
   }
 }
 
@@ -675,9 +612,12 @@ function connectSSE() {
         allSessions = msg.data;
         renderSidebar(allSessions);
         renderGrid(allSessions);
-        if (currentView === 'org') renderOrgChart(allSessions);
-        if (selectedKey) selectAgent(selectedKey);
       }
+      if (msg.type === 'org') {
+        orgData = msg.data;
+        if (currentView === 'org') renderOrgChart(orgData);
+      }
+      if (selectedKey) selectAgent(selectedKey);
     } catch {}
   };
 
