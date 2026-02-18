@@ -14,18 +14,48 @@
       "role": "Chief of Staff",
       "emoji": "🦉",
       "type": "agent",
-      "agentKey": "agent:main:main",
+      "agentKey": "agent:main:discord:channel:1473703468748505280",
       "parentId": "cody"
     },
     {
-      "id": "pixel",
-      "name": "Pixel",
-      "role": "Design Lead",
-      "emoji": "🎨",
+      "id": "iris",
+      "name": "Iris",
+      "role": "CTO",
+      "emoji": "🔧",
       "type": "agent",
-      "workspace": "/Users/ferdinand/Projects/agents/pixel",
+      "workspace": "/Users/ferdinand/Projects/agents/iris",
       "parentId": "ferdinand",
-      "specialty": "UI/UX · Frontend"
+      "specialty": "Technical strategy · Engineering"
+    },
+    {
+      "id": "sage",
+      "name": "Sage",
+      "role": "CPO",
+      "emoji": "📐",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/sage",
+      "parentId": "ferdinand",
+      "specialty": "Product · Design · UX"
+    },
+    {
+      "id": "nova",
+      "name": "Nova",
+      "role": "COO",
+      "emoji": "⚙️",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/nova",
+      "parentId": "ferdinand",
+      "specialty": "Operations · Process · Execution"
+    },
+    {
+      "id": "ledger",
+      "name": "Ledger",
+      "role": "CFO",
+      "emoji": "📊",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/ledger",
+      "parentId": "ferdinand",
+      "specialty": "Token costs · ROI · Budget"
     },
     {
       "id": "slate",
@@ -34,8 +64,18 @@
       "emoji": "🖥️",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/slate",
-      "parentId": "ferdinand",
+      "parentId": "iris",
       "specialty": "APIs · Data · Infrastructure"
+    },
+    {
+      "id": "pixel",
+      "name": "Pixel",
+      "role": "Design Lead",
+      "emoji": "🎨",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/pixel",
+      "parentId": "sage",
+      "specialty": "UI/UX · Frontend · Visual systems"
     }
   ]
 }
