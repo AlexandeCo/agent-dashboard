@@ -76,6 +76,26 @@
       "workspace": "/Users/ferdinand/Projects/agents/pixel",
       "parentId": "sage",
       "specialty": "UI/UX · Frontend · Visual systems"
+    },
+    {
+      "id": "mara",
+      "name": "Mara",
+      "role": "CMO",
+      "emoji": "📣",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/mara",
+      "parentId": "ferdinand",
+      "specialty": "Positioning · Messaging · Growth"
+    },
+    {
+      "id": "beacon",
+      "name": "Beacon",
+      "role": "SEO Lead",
+      "emoji": "🔍",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/Projects/agents/beacon",
+      "parentId": "mara",
+      "specialty": "Search · Content strategy · Technical SEO"
     }
   ]
 }
