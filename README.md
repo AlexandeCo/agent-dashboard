@@ -1,8 +1,8 @@
-# 🦉 Agent Dashboard
+# 🦉 Switchboard
 
 > *Live monitoring and org chart for your AI agent team. See what every agent is doing, right now.*
 
-![Agent Dashboard](https://github.com/AlexandeCo/agent-dashboard/raw/main/docs/preview.png)
+![Switchboard](https://github.com/AlexandeCo/switchboard/raw/main/docs/preview.png)
 
 *(screenshot coming soon)*
 
@@ -12,7 +12,7 @@
 
 If you're running multiple AI agents — whether they're doing research, writing code, or managing workflows — you've probably wondered: **what are they actually doing right now?**
 
-Agent Dashboard gives you:
+Switchboard gives you:
 
 - **Live agent status** — which agents are active, what they're working on, when they last did something
 - **Org chart view** — see the full hierarchy of who reports to whom, with live status dots
@@ -27,8 +27,8 @@ Built for [OpenClaw](https://openclaw.ai) multi-agent setups, but the concepts a
 ## Quickstart
 
 ```bash
-git clone https://github.com/AlexandeCo/agent-dashboard.git
-cd agent-dashboard
+git clone https://github.com/AlexandeCo/switchboard.git
+cd switchboard
 npm install
 node server.js
 ```

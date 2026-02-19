@@ -1,7 +1,7 @@
 {
-  "name": "agent-dashboard",
+  "name": "switchboard",
   "version": "1.0.0",
-  "description": "Live OpenClaw agent monitoring dashboard",
+  "description": "Live OpenClaw agent monitoring dashboard — Switchboard",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

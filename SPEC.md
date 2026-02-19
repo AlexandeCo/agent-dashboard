@@ -1,4 +1,4 @@
-# Agent Dashboard — Build Spec
+# Switchboard — Build Spec
 
 ## Overview
 A real-time web dashboard for monitoring OpenClaw AI agents. Shows which agents are running, what they're working on, their activity/status, and an org chart view of agent hierarchy.
@@ -109,11 +109,11 @@ Use ES modules, modern CSS. No frameworks needed.
   - idle: #6b7280 (gray)
   - aborted: #ef4444 (red)
 - Font: system-ui stack
-- Header with "Agent Dashboard" title, connection status, view toggle buttons
+- Header with "Switchboard" title, connection status, view toggle buttons
 
 ## File Structure
 ```
-agent-dashboard/
+switchboard/
   server.js        ← Node.js backend
   index.html       ← Single-file frontend
   package.json     ← minimal (no deps if possible, or just nodemon for dev)
@@ -130,4 +130,4 @@ agent-dashboard/
 
 ## Startup notification
 When completely done building and everything works, run:
-openclaw system event --text "Done: Agent dashboard built at ~/Projects/agent-dashboard — run 'node server.js' to start on port 4242" --mode now
+openclaw system event --text "Done: Switchboard built at ~/Projects/switchboard — run 'node server.js' to start on port 4242" --mode now
