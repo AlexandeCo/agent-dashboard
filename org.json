@@ -98,6 +98,16 @@
       "specialty": "SecOps · Code audits · Threat modeling"
     },
     {
+      "id": "arch",
+      "name": "Arch",
+      "role": "Solutions Architect",
+      "emoji": "🏗️",
+      "type": "agent",
+      "workspace": "/Users/ferdinand/.openclaw/workspace/agents/arch",
+      "parentId": "ferdinand",
+      "specialty": "Feasibility · Integration validation · Technical gatekeeping"
+    },
+    {
       "id": "mara",
       "name": "Mara",
       "role": "CMO",
