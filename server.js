@@ -844,13 +844,17 @@ app.get('/api/validate-key', async (req, res) => {
   }
 });
 
-// GET /api/detect/openclaw → check if ~/.openclaw/openclaw.json has valid auth
+// GET /api/detect/openclaw → check if OpenClaw is installed and configured
 app.get('/api/detect/openclaw', (req, res) => {
   try {
     const cfg = readOpenclawConfig();
-    // Has auth if there's a top-level apiKey or a providers.anthropic entry
-    const hasAuth = !!(cfg && (cfg.apiKey || (cfg.providers && cfg.providers.anthropic)));
-    res.json({ ok: hasAuth });
+    // OpenClaw stores auth under cfg.auth.profiles (token or api_key mode)
+    // Just check if the config exists and has any auth profiles for anthropic
+    const profiles = cfg?.auth?.profiles || {};
+    const hasAnthropicProfile = Object.keys(profiles).some(k => k.startsWith('anthropic'));
+    // Also accept if OpenClaw is simply installed (agents list configured)
+    const hasAgents = Array.isArray(cfg?.agents?.list) && cfg.agents.list.length > 0;
+    res.json({ ok: !!(hasAnthropicProfile || hasAgents) });
   } catch {
     res.json({ ok: false });
   }
