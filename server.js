@@ -664,6 +664,86 @@ app.get('/api/agents/:agentId/config', (req, res) => {
   res.json({ model, hasCustomKey });
 });
 
+// ── Switchboard First-Run Config ─────────────────────────────────────────────
+
+const SWITCHBOARD_CONFIG = path.join(os.homedir(), '.switchboard', 'config.json');
+
+function readSwitchboardConfig() {
+  try { return JSON.parse(fs.readFileSync(SWITCHBOARD_CONFIG, 'utf8')); }
+  catch { return null; }
+}
+
+function writeSwitchboardConfig(cfg) {
+  fs.mkdirSync(path.dirname(SWITCHBOARD_CONFIG), { recursive: true });
+  fs.writeFileSync(SWITCHBOARD_CONFIG, JSON.stringify(cfg, null, 2), 'utf8');
+}
+
+// GET /api/setup/status → { firstRun: bool, maskedKey: string|null }
+app.get('/api/setup/status', (req, res) => {
+  const cfg = readSwitchboardConfig();
+  const firstRun = !cfg || cfg.firstRun === true;
+  let maskedKey = null;
+  if (cfg && cfg.apiKey) {
+    const k = cfg.apiKey;
+    maskedKey = k.length > 4 ? `sk-...${k.slice(-4)}` : '••••';
+  }
+  res.json({ firstRun, maskedKey, template: cfg?.template || null });
+});
+
+// POST /api/setup → writes config.json + org.json
+app.post('/api/setup', express.json(), (req, res) => {
+  const { key, provider, template, nodes } = req.body || {};
+  if (!key || !template) {
+    return res.status(400).json({ ok: false, error: 'key and template required' });
+  }
+  const cfg = { firstRun: false, apiKey: key, provider: provider || 'anthropic', template, nodes: nodes || [] };
+  try { writeSwitchboardConfig(cfg); }
+  catch (err) { return res.status(500).json({ ok: false, error: 'Failed to write config' }); }
+  try { fs.writeFileSync(ORG_CONFIG, JSON.stringify({ nodes: nodes || [] }, null, 2), 'utf8'); }
+  catch (err) { return res.status(500).json({ ok: false, error: 'Failed to write org.json' }); }
+  res.json({ ok: true });
+});
+
+// GET /api/validate-key → proxies to Anthropic, returns { ok, error? }
+app.get('/api/validate-key', async (req, res) => {
+  const key = req.query.key;
+  if (!key) return res.status(400).json({ ok: false, error: 'key required' });
+  try {
+    const https = require('https');
+    const statusCode = await new Promise((resolve, reject) => {
+      const r = https.request({
+        hostname: 'api.anthropic.com',
+        path: '/v1/models',
+        method: 'GET',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      }, (resp) => { resp.resume(); resolve(resp.statusCode); });
+      r.on('error', reject);
+      r.setTimeout(8000, () => { r.destroy(); reject(new Error('timeout')); });
+      r.end();
+    });
+    if (statusCode === 200) {
+      res.json({ ok: true });
+    } else {
+      const errType = (statusCode === 401 || statusCode === 403) ? 'invalid_key' : `http_${statusCode}`;
+      res.json({ ok: false, error: errType });
+    }
+  } catch (err) {
+    res.json({ ok: false, error: 'network_error' });
+  }
+});
+
+// PATCH /api/settings/reset → sets firstRun: true in config
+app.patch('/api/settings/reset', express.json(), (req, res) => {
+  try {
+    const cfg = readSwitchboardConfig() || {};
+    cfg.firstRun = true;
+    writeSwitchboardConfig(cfg);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: 'Failed to update config' });
+  }
+});
+
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`🦞 Switchboard running at http://localhost:${PORT}`);
 });

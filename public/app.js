@@ -1,4 +1,252 @@
 /* ═══════════════════════════════════════════════════════
+   Wizard — Template Definitions
+═══════════════════════════════════════════════════════ */
+
+const WIZARD_TEMPLATES = {
+  'solo-dev': {
+    label: 'Solo Dev',
+    nodes: [
+      { id: 'cody', name: 'Cody', role: 'CEO', emoji: '👤', type: 'human', parentId: null },
+      { id: 'ferdinand', name: 'Ferdinand', role: 'Chief of Staff', emoji: '🦉', type: 'agent',
+        agentKey: 'agent:main:discord:channel:1473703468748505280', parentId: 'cody' },
+      { id: 'arch', name: 'Arch', role: 'Solutions Architect', emoji: '🏗️', type: 'agent',
+        parentId: 'ferdinand', specialty: 'Feasibility · Integration validation · Build gatekeeping' },
+      { id: 'slate', name: 'Slate', role: 'Backend Lead', emoji: '🖥️', type: 'agent',
+        parentId: 'arch', specialty: 'APIs · Data · Infrastructure' },
+      { id: 'pixel', name: 'Pixel', role: 'Design Lead', emoji: '🎨', type: 'agent',
+        parentId: 'arch', specialty: 'UI/UX · Frontend · Visual systems' },
+    ]
+  },
+  'full-team': {
+    label: 'Full Team',
+    nodes: [
+      { id: 'cody', name: 'Cody', role: 'CEO', emoji: '👤', type: 'human', parentId: null },
+      { id: 'ferdinand', name: 'Ferdinand', role: 'Chief of Staff', emoji: '🦉', type: 'agent',
+        agentKey: 'agent:main:discord:channel:1473703468748505280', parentId: 'cody' },
+      { id: 'arch', name: 'Arch', role: 'Solutions Architect', emoji: '🏗️', type: 'agent',
+        workspace: '/Users/ferdinand/.openclaw/workspace/agents/arch',
+        parentId: 'ferdinand', specialty: 'Feasibility · Integration validation · Build gatekeeping' },
+      { id: 'iris', name: 'Iris', role: 'CTO', emoji: '🔧', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/iris',
+        parentId: 'arch', specialty: 'Technical strategy · Engineering' },
+      { id: 'sage', name: 'Sage', role: 'CPO', emoji: '📐', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/sage',
+        parentId: 'arch', specialty: 'Product · Design · UX' },
+      { id: 'nova', name: 'Nova', role: 'COO', emoji: '⚙️', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/nova',
+        parentId: 'arch', specialty: 'Operations · Process · Execution' },
+      { id: 'ledger', name: 'Ledger', role: 'CFO', emoji: '📊', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/ledger',
+        parentId: 'arch', specialty: 'Token costs · ROI · Budget' },
+      { id: 'mara', name: 'Mara', role: 'CMO', emoji: '📣', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/mara',
+        parentId: 'arch', specialty: 'Positioning · Messaging · Growth' },
+      { id: 'slate', name: 'Slate', role: 'Backend Lead', emoji: '🖥️', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/slate',
+        parentId: 'iris', specialty: 'APIs · Data · Infrastructure' },
+      { id: 'quill', name: 'Quill', role: 'QA Lead', emoji: '🔬', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/quill',
+        parentId: 'iris', specialty: 'Testing · Quality · Bug hunting' },
+      { id: 'vault', name: 'Vault', role: 'Security Lead', emoji: '🔐', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/vault',
+        parentId: 'iris', specialty: 'SecOps · Code audits · Threat modeling' },
+      { id: 'pixel', name: 'Pixel', role: 'Design Lead', emoji: '🎨', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/pixel',
+        parentId: 'sage', specialty: 'UI/UX · Frontend · Visual systems' },
+      { id: 'beacon', name: 'Beacon', role: 'SEO Lead', emoji: '🔍', type: 'agent',
+        workspace: '/Users/ferdinand/Projects/agents/beacon',
+        parentId: 'mara', specialty: 'Search · Content strategy · Technical SEO' },
+    ]
+  },
+  'custom': {
+    label: 'Custom',
+    nodes: [
+      { id: 'cody', name: 'Cody', role: 'CEO', emoji: '👤', type: 'human', parentId: null }
+    ]
+  }
+};
+
+/* ═══════════════════════════════════════════════════════
+   Wizard State & Logic
+═══════════════════════════════════════════════════════ */
+
+const wizardState = { step: 1, key: '', template: null };
+
+async function initApp() {
+  try {
+    const res  = await fetch('/api/setup/status');
+    const data = await res.json();
+    if (data.firstRun) {
+      document.getElementById('wizard-overlay').style.display = 'flex';
+    } else {
+      showDashboard();
+    }
+  } catch (e) {
+    // Network error — fall through to dashboard
+    showDashboard();
+  }
+}
+
+function showDashboard() {
+  document.getElementById('wizard-overlay').style.display = 'none';
+  document.getElementById('settings-gear-btn').style.display = 'flex';
+  fetchSessions();
+  connectSSE();
+}
+
+function wizardNext(step) {
+  document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+  document.getElementById(`wizard-step-${step}`).classList.add('active');
+  wizardState.step = step;
+}
+
+function onKeyInput(val) {
+  wizardState.key = val.trim();
+  document.getElementById('wizard-verify-btn').disabled = wizardState.key.length === 0;
+  document.getElementById('wizard-key-error').style.display = 'none';
+  document.getElementById('wizard-key-input').classList.remove('error');
+}
+
+async function wizardVerifyKey() {
+  const key = document.getElementById('wizard-key-input').value.trim();
+  if (!key) return;
+
+  const btn   = document.getElementById('wizard-verify-btn');
+  const err   = document.getElementById('wizard-key-error');
+  const input = document.getElementById('wizard-key-input');
+
+  btn.textContent = 'Verifying…';
+  btn.disabled    = true;
+  err.style.display = 'none';
+  input.classList.remove('error');
+
+  try {
+    const res  = await fetch(`/api/validate-key?key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+
+    if (data.ok) {
+      wizardState.key = key;
+      btn.textContent = '✓ Verified';
+      btn.classList.remove('primary');
+      btn.classList.add('success');
+      setTimeout(() => {
+        btn.textContent = 'Verify & continue';
+        btn.classList.remove('success');
+        btn.classList.add('primary');
+        wizardNext(3);
+      }, 800);
+    } else {
+      input.classList.add('error');
+      err.style.display  = 'block';
+      err.textContent    = data.error === 'invalid_key'
+        ? 'Invalid key. Double-check it and try again.'
+        : "Couldn't reach the API. Make sure OpenClaw is running.";
+      btn.textContent = 'Verify & continue';
+      btn.disabled    = false;
+    }
+  } catch {
+    input.classList.add('error');
+    err.style.display = 'block';
+    err.textContent   = "Couldn't reach the API. Make sure OpenClaw is running.";
+    btn.textContent   = 'Verify & continue';
+    btn.disabled      = false;
+  }
+}
+
+function selectTemplate(id) {
+  wizardState.template = id;
+  document.querySelectorAll('.wizard-template-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`tpl-${id}`).classList.add('selected');
+  document.getElementById('wizard-template-btn').disabled = false;
+}
+
+async function wizardSetupTemplate() {
+  if (!wizardState.template) return;
+
+  const btn   = document.getElementById('wizard-template-btn');
+  const nodes = WIZARD_TEMPLATES[wizardState.template].nodes;
+
+  btn.textContent = 'Saving…';
+  btn.disabled    = true;
+
+  try {
+    const res  = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: wizardState.key, provider: 'anthropic',
+                             template: wizardState.template, nodes }),
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      showWizardToast("Couldn't save your config. Check that ~/.switchboard/ is writable.");
+      btn.textContent = 'Set up my team →';
+      btn.disabled    = false;
+      return;
+    }
+
+    const doneTexts = {
+      'solo-dev':  'Cody, Ferdinand, Arch, Slate, and Pixel are standing by.',
+      'full-team': 'Your full org is loaded and ready to explore.',
+      'custom':    'Cody is waiting. Add your team from the org chart view.',
+    };
+    document.getElementById('wizard-done-subtext').textContent =
+      doneTexts[wizardState.template] || '';
+    wizardNext(4);
+  } catch {
+    showWizardToast("Couldn't save your config. Check that ~/.switchboard/ is writable.");
+    btn.textContent = 'Set up my team →';
+    btn.disabled    = false;
+  }
+}
+
+async function wizardFinish() {
+  document.getElementById('wizard-overlay').style.display = 'none';
+  showDashboard();
+  if (wizardState.template === 'custom') setView('org');
+}
+
+function showWizardToast(msg) {
+  const t = document.createElement('div');
+  t.className   = 'wizard-toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Settings Panel
+═══════════════════════════════════════════════════════ */
+
+async function toggleSettings() {
+  const panel = document.getElementById('settings-panel');
+  if (panel.style.display === 'block') {
+    closeSettings();
+    return;
+  }
+  // Populate
+  try {
+    const data = await fetch('/api/setup/status').then(r => r.json());
+    document.getElementById('settings-key-display').textContent =
+      data.maskedKey || (data.firstRun ? 'Not configured' : '•••• set');
+    const tplLabels = { 'solo-dev': 'Solo Dev', 'full-team': 'Full Team', 'custom': 'Custom' };
+    document.getElementById('settings-template-display').textContent =
+      (data.template && tplLabels[data.template]) || '—';
+  } catch {}
+  panel.style.display = 'block';
+}
+
+function closeSettings() {
+  document.getElementById('settings-panel').style.display = 'none';
+}
+
+async function rerunSetup() {
+  closeSettings();
+  try { await fetch('/api/settings/reset', { method: 'PATCH' }); } catch {}
+  window.location.reload();
+}
+
+/* ═══════════════════════════════════════════════════════
    State
 ═══════════════════════════════════════════════════════ */
 let allSessions  = [];
@@ -859,8 +1107,7 @@ function connectSSE() {
 /* ═══════════════════════════════════════════════════════
    Init
 ═══════════════════════════════════════════════════════ */
-fetchSessions();
-connectSSE();
+initApp();
 
 // Refresh time-ago labels every 30s
 setInterval(() => {

@@ -110,6 +110,148 @@
     </aside>
   </div>
 
+  <!-- ═══ Settings Gear (fixed top-right) ═══ -->
+  <button class="settings-gear-btn" id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="display:none">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M13.3 6.4l-.8-.5a5.1 5.1 0 0 0 0-1.8l.8-.5a.6.6 0 0 0 .2-.8l-.8-1.4a.6.6 0 0 0-.8-.2l-.8.5a5 5 0 0 0-1.6-.9V.6A.6.6 0 0 0 9 0H7a.6.6 0 0 0-.6.6v.9a5 5 0 0 0-1.5.9l-.9-.5a.6.6 0 0 0-.8.2L2.4 3.5a.6.6 0 0 0 .2.8l.8.5a5.1 5.1 0 0 0 0 1.8l-.8.5a.6.6 0 0 0-.2.8L3.2 9.3a.6.6 0 0 0 .8.2l.9-.5a5 5 0 0 0 1.5.9v.9c0 .3.3.6.6.6h2c.3 0 .6-.3.6-.6v-.9a5 5 0 0 0 1.6-.9l.8.5a.6.6 0 0 0 .8-.2l.8-1.4a.6.6 0 0 0-.2-.9Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <!-- ═══ Settings Panel ═══ -->
+  <div class="settings-panel" id="settings-panel" style="display:none">
+    <div class="settings-panel-header">
+      <span>Settings</span>
+      <button class="settings-close-btn" onclick="closeSettings()">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-panel-body">
+      <div class="settings-row">
+        <span class="settings-label">API Key</span>
+        <span class="settings-value" id="settings-key-display">—</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Template</span>
+        <span class="settings-value" id="settings-template-display">—</span>
+      </div>
+      <button class="wizard-btn secondary" style="width:100%;margin-top:4px" onclick="rerunSetup()">↩ Re-run setup wizard</button>
+    </div>
+  </div>
+
+  <!-- ═══ Wizard Overlay ═══ -->
+  <div id="wizard-overlay" class="wizard-overlay" style="display:none">
+
+    <!-- Step 1: Welcome -->
+    <div id="wizard-step-1" class="wizard-step active">
+      <div class="wizard-card">
+        <div class="wizard-logo">🦞</div>
+        <h1>Welcome to Switchboard</h1>
+        <p>Your AI org chart. See who's on your team, how they're connected, and what each agent does.</p>
+        <button class="wizard-btn primary" onclick="wizardNext(2)">Get started →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: API Key -->
+    <div id="wizard-step-2" class="wizard-step">
+      <div class="wizard-card">
+        <div class="wizard-step-indicator">Step 2 of 4</div>
+        <h2>Connect your OpenClaw key</h2>
+        <p>Switchboard uses this to validate your agents. Your key is stored locally and never leaves your machine.</p>
+        <div class="wizard-input-group">
+          <input type="password" id="wizard-key-input" placeholder="sk-ant-..." autocomplete="off"
+            oninput="onKeyInput(this.value)" />
+          <div class="wizard-input-hint">Saved to ~/.switchboard/config.json — never transmitted</div>
+          <div id="wizard-key-error" class="wizard-error" style="display:none"></div>
+        </div>
+        <button class="wizard-btn primary" id="wizard-verify-btn" onclick="wizardVerifyKey()" disabled>Verify &amp; continue</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Template -->
+    <div id="wizard-step-3" class="wizard-step">
+      <div class="wizard-card wizard-card-wide">
+        <div class="wizard-step-indicator">Step 3 of 4</div>
+        <h2>How do you want to start?</h2>
+        <p style="margin-bottom:24px">Pick a starting template — you can always add or remove agents later.</p>
+        <div class="wizard-templates">
+
+          <!-- Solo Dev -->
+          <div class="wizard-template-card" id="tpl-solo-dev" onclick="selectTemplate('solo-dev')">
+            <h3>🧑‍💻 Solo Dev</h3>
+            <p>You + a small focused crew: CoS, Architect, Backend, and Design.</p>
+            <div class="wizard-template-preview">
+              <svg width="110" height="72" viewBox="0 0 110 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="55" cy="10" r="7" fill="#3b82f6" opacity="0.8"/>
+                <line x1="55" y1="17" x2="55" y2="28" stroke="#3b82f6" stroke-width="1.2" opacity="0.4"/>
+                <circle cx="55" cy="35" r="6" fill="#818cf8" opacity="0.7"/>
+                <line x1="55" y1="41" x2="55" y2="50" stroke="#818cf8" stroke-width="1.2" opacity="0.4"/>
+                <circle cx="55" cy="57" r="5" fill="#6366f1" opacity="0.6"/>
+                <line x1="55" y1="54" x2="30" y2="62" stroke="#6366f1" stroke-width="1" opacity="0.35"/>
+                <line x1="55" y1="54" x2="80" y2="62" stroke="#6366f1" stroke-width="1" opacity="0.35"/>
+                <circle cx="24" cy="65" r="5" fill="#8b5cf6" opacity="0.5"/>
+                <circle cx="86" cy="65" r="5" fill="#ec4899" opacity="0.5"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Full Team -->
+          <div class="wizard-template-card" id="tpl-full-team" onclick="selectTemplate('full-team')">
+            <h3>🏢 Full Team</h3>
+            <p>The complete hierarchy: C-suite, leads, and specialists.</p>
+            <div class="wizard-template-preview">
+              <svg width="110" height="72" viewBox="0 0 110 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="55" cy="8" r="6" fill="#3b82f6" opacity="0.8"/>
+                <line x1="55" y1="14" x2="55" y2="22" stroke="#3b82f6" stroke-width="1.2" opacity="0.4"/>
+                <circle cx="55" cy="27" r="5" fill="#818cf8" opacity="0.7"/>
+                <line x1="55" y1="32" x2="55" y2="38" stroke="#818cf8" stroke-width="1" opacity="0.35"/>
+                <circle cx="55" cy="43" r="4.5" fill="#6366f1" opacity="0.6"/>
+                <!-- level 3: 5 children -->
+                <line x1="55" y1="47" x2="18" y2="56" stroke="#6366f1" stroke-width="0.9" opacity="0.3"/>
+                <line x1="55" y1="47" x2="37" y2="56" stroke="#6366f1" stroke-width="0.9" opacity="0.3"/>
+                <line x1="55" y1="47" x2="55" y2="56" stroke="#6366f1" stroke-width="0.9" opacity="0.3"/>
+                <line x1="55" y1="47" x2="73" y2="56" stroke="#6366f1" stroke-width="0.9" opacity="0.3"/>
+                <line x1="55" y1="47" x2="92" y2="56" stroke="#6366f1" stroke-width="0.9" opacity="0.3"/>
+                <circle cx="12" cy="60" r="4" fill="#8b5cf6" opacity="0.5"/>
+                <circle cx="31" cy="60" r="4" fill="#ec4899" opacity="0.5"/>
+                <circle cx="55" cy="60" r="4" fill="#14b8a6" opacity="0.5"/>
+                <circle cx="74" cy="60" r="4" fill="#f59e0b" opacity="0.5"/>
+                <circle cx="98" cy="60" r="4" fill="#ef4444" opacity="0.5"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Custom -->
+          <div class="wizard-template-card" id="tpl-custom" onclick="selectTemplate('custom')">
+            <h3>✏️ Custom</h3>
+            <p>Start with just your CEO node. Build the rest yourself.</p>
+            <div class="wizard-template-preview">
+              <svg width="110" height="72" viewBox="0 0 110 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="55" cy="28" r="8" fill="#3b82f6" opacity="0.8"/>
+                <text x="55" y="56" text-anchor="middle" font-size="11" fill="#52525b" font-family="Inter, sans-serif">+ Add agents</text>
+              </svg>
+            </div>
+          </div>
+
+        </div>
+        <button class="wizard-btn primary" id="wizard-template-btn" onclick="wizardSetupTemplate()" disabled>Set up my team →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div id="wizard-step-4" class="wizard-step">
+      <div class="wizard-card">
+        <div class="wizard-check">✓</div>
+        <h1>Your team is ready.</h1>
+        <p id="wizard-done-subtext" style="margin-bottom:32px"></p>
+        <button class="wizard-btn primary" onclick="wizardFinish()">Open Switchboard</button>
+      </div>
+    </div>
+
+  </div><!-- /wizard-overlay -->
+
   <script src="app.js"></script>
 </body>
 </html>
