@@ -119,6 +119,145 @@ function truncate(str, max = 80) {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Provider helpers (Feature 1 + 3)
+═══════════════════════════════════════════════════════ */
+function getProvider(model) {
+  if (!model) return null;
+  const m = model.toLowerCase();
+  if (m.startsWith('anthropic/') || m.includes('claude')) return 'anthropic';
+  if (m.startsWith('openai/')    || m.startsWith('gpt')   || m.startsWith('o3') || m.startsWith('o1')) return 'openai';
+  if (m.startsWith('google/')    || m.includes('gemini'))  return 'google';
+  return 'unknown';
+}
+
+function providerBadgeHtml(model) {
+  const provider = getProvider(model);
+  if (!provider || provider === 'unknown') return '';
+  const labels = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
+  return `<span class="provider-badge provider-badge-${provider}">${labels[provider]}</span>`;
+}
+
+/* Model list */
+const MODEL_GROUPS = [
+  { label: 'Anthropic', provider: 'anthropic', models: [
+    'anthropic/claude-opus-4-6',
+    'anthropic/claude-sonnet-4-6',
+    'anthropic/claude-haiku-4-6',
+  ]},
+  { label: 'OpenAI', provider: 'openai', models: [
+    'openai/gpt-4o',
+    'openai/gpt-4o-mini',
+    'openai/o3-mini',
+  ]},
+  { label: 'Google', provider: 'google', models: [
+    'google/gemini-2.0-flash',
+    'google/gemini-2.5-pro',
+  ]},
+];
+
+/* ═══════════════════════════════════════════════════════
+   Model picker + API key actions
+═══════════════════════════════════════════════════════ */
+function toggleModelPicker() {
+  document.querySelector('.model-picker')?.classList.toggle('is-open');
+}
+
+// Close picker when clicking outside
+document.addEventListener('click', (e) => {
+  const picker = document.querySelector('.model-picker');
+  if (picker && !picker.contains(e.target)) picker.classList.remove('is-open');
+});
+
+async function selectModel(agentId, model) {
+  // Close dropdown
+  document.querySelector('.model-picker')?.classList.remove('is-open');
+
+  // Update trigger label + provider badge immediately (optimistic)
+  const trigger = document.querySelector('.model-picker-current');
+  if (trigger) trigger.textContent = model.split('/').pop();
+
+  // Update badge in trigger
+  const triggerBadge = document.querySelector('.model-picker-trigger-inner .provider-badge');
+  if (triggerBadge) {
+    const provider = getProvider(model);
+    triggerBadge.className = `provider-badge provider-badge-${provider}`;
+    const labels = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', unknown: '?' };
+    triggerBadge.textContent = labels[provider] || '?';
+  }
+
+  // Mark selected option
+  document.querySelectorAll('.model-option').forEach(el => {
+    el.classList.toggle('is-selected', el.dataset.model === model);
+  });
+
+  // Update local state
+  const s = allSessions.find(s => s.key === agentId);
+  if (s) s.model = model;
+  renderGrid(allSessions);
+  renderSidebar(allSessions);
+
+  // Persist via API
+  try {
+    const r = await fetch(`/api/agents/${encodeURIComponent(agentId)}/model`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+    const feedback = document.getElementById('model-save-feedback');
+    if (feedback) {
+      feedback.textContent = '✓ Model saved';
+      feedback.classList.add('is-visible');
+      setTimeout(() => feedback.classList.remove('is-visible'), 2000);
+    }
+    // Flash card
+    const card = document.querySelector(`.agent-card[data-key="${CSS.escape(agentId)}"]`);
+    if (card) {
+      card.classList.add('card-success');
+      card.addEventListener('animationend', () => card.classList.remove('card-success'), { once: true });
+    }
+  } catch (e) {
+    console.error('Model save failed:', e);
+  }
+}
+
+async function saveApiKey(agentId) {
+  const input = document.getElementById('apikey-input');
+  const btn   = document.getElementById('apikey-save-btn');
+  const fb    = document.getElementById('apikey-feedback');
+  if (!input || !btn || !fb) return;
+
+  const key = input.value.trim();
+  if (!key) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const s = allSessions.find(s => s.key === agentId);
+  const provider = getProvider(s?.model) || 'unknown';
+
+  try {
+    await fetch(`/api/agents/${encodeURIComponent(agentId)}/apikey`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, key }),
+    });
+    // Mask the input after save
+    input.value = key.slice(0, 8) + '•'.repeat(Math.max(0, key.length - 8));
+    input.dataset.saved = '1';
+    fb.textContent = '✓ Key saved';
+    fb.className = 'apikey-feedback is-visible is-success';
+    setTimeout(() => fb.classList.remove('is-visible'), 2500);
+  } catch (e) {
+    fb.textContent = '✕ Save failed';
+    fb.className = 'apikey-feedback is-visible is-error';
+    setTimeout(() => fb.classList.remove('is-visible'), 2500);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    Sidebar
 ═══════════════════════════════════════════════════════ */
 function renderSidebar(sessions) {
@@ -256,13 +395,14 @@ function renderCard(s) {
 
   // Type subtitle
   let typeStr = s.sessionType;
-  if (model) typeStr += ` · ${model}`;
   if (s.spawnDepth > 0) typeStr += ` · depth ${s.spawnDepth}`;
 
   const canDismiss = s.sessionType === 'subagent' && !s.isActive;
+  const badge = providerBadgeHtml(s.model);
+  const modelShortName = model ? model : null;
 
   return `
-    <div class="agent-card" onclick="selectAgent('${escHtml(s.key)}')">
+    <div class="agent-card" data-key="${escHtml(s.key)}" onclick="selectAgent('${escHtml(s.key)}')">
       <div class="card-status-bar ${status}-bar"></div>
       ${canDismiss ? `
         <button class="card-dismiss" title="Dismiss agent" onclick="event.stopPropagation(); dismissAgent('${escHtml(s.key)}')">✕</button>
@@ -273,6 +413,12 @@ function renderCard(s) {
           <div class="card-meta">
             <div class="card-name">${escHtml(name)}</div>
             <div class="card-type">${escHtml(typeStr)}</div>
+            ${(badge || modelShortName) ? `
+              <div class="card-model-row">
+                ${badge}
+                ${modelShortName ? `<span class="card-model-name">${escHtml(modelShortName)}</span>` : ''}
+              </div>
+            ` : ''}
           </div>
           <div class="card-status-badge status-badge-${status}">
             <div class="badge-dot"></div>
@@ -512,6 +658,25 @@ function selectAgent(key) {
     </div>
   ` : '';
 
+  // Build model picker dropdown HTML
+  const currentModel = s.model || null;
+  const modelOptionsHtml = MODEL_GROUPS.map((group, gi) => `
+    ${gi > 0 ? '<div class="model-picker-divider"></div>' : ''}
+    <div class="model-group-label">${group.label}</div>
+    ${group.models.map(m => `
+      <div class="model-option${currentModel === m ? ' is-selected' : ''}"
+           data-model="${escHtml(m)}"
+           onclick="selectModel('${escHtml(s.key)}', '${escHtml(m)}')">
+        ${escHtml(m.split('/').pop())}
+      </div>
+    `).join('')}
+  `).join('');
+
+  const providerLabel = currentModel
+    ? { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', unknown: 'Unknown' }[getProvider(currentModel)] || 'Unknown'
+    : 'None';
+  const providerClass = currentModel ? `provider-badge-${getProvider(currentModel)}` : 'provider-badge-unknown';
+
   const html = `
     <div class="detail-header">
       <button class="detail-close-btn" onclick="closeDetail()" title="Close">✕</button>
@@ -545,6 +710,45 @@ function selectAgent(key) {
           <div class="detail-stat-label">Output tokens</div>
         </div>
       </div>
+    </div>
+
+    <!-- Feature 1 + 3: Model picker -->
+    <div class="detail-section">
+      <div class="detail-section-label">Model</div>
+      <div class="model-picker" id="model-picker">
+        <button class="model-picker-trigger" onclick="toggleModelPicker()" type="button">
+          <span class="model-picker-trigger-inner">
+            <span class="provider-badge ${providerClass}">${providerLabel}</span>
+            <span class="model-picker-current">${currentModel ? escHtml(currentModel.split('/').pop()) : 'Not set'}</span>
+          </span>
+          <svg class="model-picker-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="model-picker-dropdown">
+          ${modelOptionsHtml}
+        </div>
+      </div>
+      <div class="model-save-feedback" id="model-save-feedback"></div>
+    </div>
+
+    <!-- Feature 2: API key input -->
+    <div class="detail-section">
+      <div class="detail-section-label">API Key</div>
+      <div class="apikey-row">
+        <input
+          id="apikey-input"
+          class="apikey-input"
+          type="password"
+          placeholder="Using default"
+          autocomplete="off"
+          spellcheck="false"
+          oninput="this.dataset.saved=''"
+        />
+        <button id="apikey-save-btn" class="apikey-save-btn" onclick="saveApiKey('${escHtml(s.key)}')">Save</button>
+      </div>
+      <div class="apikey-helper">Never stored in plaintext · masked after save</div>
+      <div class="apikey-feedback" id="apikey-feedback"></div>
     </div>
 
     ${toolSection}
