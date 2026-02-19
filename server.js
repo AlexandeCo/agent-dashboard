@@ -744,6 +744,6 @@ app.patch('/api/settings/reset', express.json(), (req, res) => {
   }
 });
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🦞 Switchboard running at http://localhost:${PORT}`);
 });
