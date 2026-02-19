@@ -107,7 +107,7 @@ mkdir -p "$AGENTS_DIR"
 for id in "${!AGENT_ROLES[@]}"; do
   name=$(echo "$id" | sed 's/./\u&/')  # capitalize first letter
   # Bash-portable capitalize
-  name="${id^}"  
+  name=$(echo "$id" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')  
   role="${AGENT_ROLES[$id]}"
   workspace="$AGENTS_DIR/$id"
 
