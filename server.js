@@ -396,16 +396,10 @@ async function loadOrgWithStatus() {
   // All session keys already claimed by org nodes
   const claimedKeys = new Set(nodes.map(n => n.sessionKey).filter(Boolean));
 
-  // Extra sessions: only non-subagent sessions not already mapped to an org node
-  // Sub-agent task sessions are excluded from the org chart — they're temporary workers,
-  // not permanent org members. They appear in the sessions panel only.
-  const extraSessions = sessions.filter(s =>
-    s.sessionType !== 'subagent' &&
-    !claimedKeys.has(s.key) &&
-    !orgNodeNames.has((s.label || '').toLowerCase()) &&
-    !orgNodeNames.has((s.displayName || '').toLowerCase()) &&
-    !dismissed.has(s.key)
-  );
+  // Org chart shows ONLY defined org members — no ghost/ephemeral session nodes.
+  // All session types (subagent, main, channel) are excluded from the tree.
+  // Live session data is still merged into org nodes above via agentKey/name matching.
+  const extraSessions = [];
 
   const extraNodes = extraSessions.map(s => ({
     id:           s.key,
@@ -493,6 +487,16 @@ async function onSessionChange() {
 
 watcher.on('change', onSessionChange);
 watcher.on('add', onSessionChange);
+
+// ── Stub: per-agent model (Slate will implement persistence) ──────────────────
+app.patch('/api/agents/:agentId/model', express.json(), (req, res) => {
+  res.json({ ok: true, pending: 'slate', agentId: req.params.agentId, model: req.body?.model });
+});
+
+// ── Stub: per-agent API key (Slate will implement persistence) ─────────────────
+app.patch('/api/agents/:agentId/apikey', express.json(), (req, res) => {
+  res.json({ ok: true, pending: 'slate', agentId: req.params.agentId });
+});
 
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`🦞 Switchboard running at http://localhost:${PORT}`);
