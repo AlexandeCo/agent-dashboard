@@ -4,7 +4,7 @@
       "id": "cody",
       "name": "Cody",
       "role": "CEO",
-      "emoji": "👤",
+      "emoji": "\ud83d\udc64",
       "type": "human",
       "parentId": null
     },
@@ -12,7 +12,7 @@
       "id": "ferdinand",
       "name": "Ferdinand",
       "role": "Chief of Staff",
-      "emoji": "🦉",
+      "emoji": "\ud83e\udd89",
       "type": "agent",
       "agentKey": "agent:main:discord:channel:1473703468748505280",
       "parentId": "cody"
@@ -21,111 +21,111 @@
       "id": "iris",
       "name": "Iris",
       "role": "CTO",
-      "emoji": "🔧",
+      "emoji": "\ud83d\udd27",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/iris",
       "parentId": "ferdinand",
-      "specialty": "Technical strategy · Engineering"
+      "specialty": "Technical strategy \u00b7 Engineering"
     },
     {
       "id": "sage",
       "name": "Sage",
       "role": "CPO",
-      "emoji": "📐",
+      "emoji": "\ud83d\udcd0",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/sage",
       "parentId": "ferdinand",
-      "specialty": "Product · Design · UX"
+      "specialty": "Product \u00b7 Design \u00b7 UX"
     },
     {
       "id": "nova",
       "name": "Nova",
       "role": "COO",
-      "emoji": "⚙️",
+      "emoji": "\u2699\ufe0f",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/nova",
       "parentId": "ferdinand",
-      "specialty": "Operations · Process · Execution"
+      "specialty": "Operations \u00b7 Process \u00b7 Execution"
     },
     {
       "id": "ledger",
       "name": "Ledger",
       "role": "CFO",
-      "emoji": "📊",
+      "emoji": "\ud83d\udcca",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/ledger",
       "parentId": "ferdinand",
-      "specialty": "Token costs · ROI · Budget"
+      "specialty": "Token costs \u00b7 ROI \u00b7 Budget"
     },
     {
       "id": "slate",
       "name": "Slate",
       "role": "Backend Lead",
-      "emoji": "🖥️",
+      "emoji": "\ud83d\udda5\ufe0f",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/slate",
       "parentId": "iris",
-      "specialty": "APIs · Data · Infrastructure"
+      "specialty": "APIs \u00b7 Data \u00b7 Infrastructure"
     },
     {
       "id": "pixel",
       "name": "Pixel",
       "role": "Design Lead",
-      "emoji": "🎨",
+      "emoji": "\ud83c\udfa8",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/pixel",
       "parentId": "sage",
-      "specialty": "UI/UX · Frontend · Visual systems"
+      "specialty": "UI/UX \u00b7 Frontend \u00b7 Visual systems"
     },
     {
       "id": "quill",
       "name": "Quill",
       "role": "QA Lead",
-      "emoji": "🔬",
+      "emoji": "\ud83d\udd2c",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/quill",
       "parentId": "iris",
-      "specialty": "Testing · Quality · Bug hunting"
+      "specialty": "Testing \u00b7 Quality \u00b7 Bug hunting"
     },
     {
       "id": "vault",
       "name": "Vault",
       "role": "Security Lead",
-      "emoji": "🔐",
+      "emoji": "\ud83d\udd10",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/vault",
       "parentId": "iris",
-      "specialty": "SecOps · Code audits · Threat modeling"
+      "specialty": "SecOps \u00b7 Code audits \u00b7 Threat modeling"
     },
     {
       "id": "arch",
       "name": "Arch",
       "role": "Solutions Architect",
-      "emoji": "🏗️",
+      "emoji": "\ud83c\udfd7\ufe0f",
       "type": "agent",
       "workspace": "/Users/ferdinand/.openclaw/workspace/agents/arch",
       "parentId": "ferdinand",
-      "specialty": "Feasibility · Integration validation · Technical gatekeeping"
+      "specialty": "Feasibility \u00b7 Integration validation \u00b7 Build gatekeeping"
     },
     {
       "id": "mara",
       "name": "Mara",
       "role": "CMO",
-      "emoji": "📣",
+      "emoji": "\ud83d\udce3",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/mara",
       "parentId": "ferdinand",
-      "specialty": "Positioning · Messaging · Growth"
+      "specialty": "Positioning \u00b7 Messaging \u00b7 Growth"
     },
     {
       "id": "beacon",
       "name": "Beacon",
       "role": "SEO Lead",
-      "emoji": "🔍",
+      "emoji": "\ud83d\udd0d",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/beacon",
       "parentId": "mara",
-      "specialty": "Search · Content strategy · Technical SEO"
+      "specialty": "Search \u00b7 Content strategy \u00b7 Technical SEO"
     }
   ]
 }
