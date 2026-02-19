@@ -396,9 +396,11 @@ async function loadOrgWithStatus() {
   // All session keys already claimed by org nodes
   const claimedKeys = new Set(nodes.map(n => n.sessionKey).filter(Boolean));
 
-  // Extra sessions: truly ad-hoc (not matching any org node name or key, not dismissed)
+  // Extra sessions: only non-subagent sessions not already mapped to an org node
+  // Sub-agent task sessions are excluded from the org chart — they're temporary workers,
+  // not permanent org members. They appear in the sessions panel only.
   const extraSessions = sessions.filter(s =>
-    s.sessionType === 'subagent' &&
+    s.sessionType !== 'subagent' &&
     !claimedKeys.has(s.key) &&
     !orgNodeNames.has((s.label || '').toLowerCase()) &&
     !orgNodeNames.has((s.displayName || '').toLowerCase()) &&
@@ -493,5 +495,5 @@ watcher.on('change', onSessionChange);
 watcher.on('add', onSessionChange);
 
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🦞 Agent Dashboard running at http://localhost:${PORT}`);
+  console.log(`🦞 Switchboard running at http://localhost:${PORT}`);
 });
