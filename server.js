@@ -46,9 +46,25 @@ function friendlyName(key, meta, sessionType) {
 const app = express();
 const PORT = 4242;
 
-const SESSIONS_DIR = process.env.OPENCLAW_SESSIONS_DIR
-  || path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
+const AGENTS_BASE   = path.join(os.homedir(), '.openclaw', 'agents');
+const SESSIONS_DIR  = process.env.OPENCLAW_SESSIONS_DIR
+  || path.join(AGENTS_BASE, 'main', 'sessions');
 const SESSIONS_JSON = path.join(SESSIONS_DIR, 'sessions.json');
+
+// All agent session dirs (main + any registered sub-agents like pixel, slate, etc.)
+function getAllSessionDirs() {
+  const dirs = [SESSIONS_DIR];
+  try {
+    const entries = fs.readdirSync(AGENTS_BASE, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory() && e.name !== 'main') {
+        const d = path.join(AGENTS_BASE, e.name, 'sessions');
+        if (fs.existsSync(path.join(d, 'sessions.json'))) dirs.push(d);
+      }
+    }
+  } catch {}
+  return dirs;
+}
 
 // SSE clients
 const sseClients = new Set();
@@ -213,20 +229,28 @@ function extractSessionActivity(lines, allLines) {
   return { lastUserMsg, lastAssistantMsg, lastToolCall, currentTask, recentTools: recentToolsTrimmed, isThinking, createdAt };
 }
 
-// Load all session data
+// Load all session data across all registered agent session directories
 async function loadSessions() {
-  let sessionsJson = {};
-  try {
-    sessionsJson = JSON.parse(fs.readFileSync(SESSIONS_JSON, 'utf8'));
-  } catch {
-    return [];
+  // Map from session key → { meta, sourceDir }
+  const sessionMap = {};
+  for (const dir of getAllSessionDirs()) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, 'sessions.json'), 'utf8'));
+      for (const [key, meta] of Object.entries(data)) {
+        sessionMap[key] = { meta, sourceDir: dir };
+      }
+    } catch {}
   }
+  // Convert to flat entries for compatibility with rest of function
+  const sessionsJson = Object.fromEntries(
+    Object.entries(sessionMap).map(([k, v]) => [k, { ...v.meta, _sourceDir: v.sourceDir }])
+  );
 
   const sessions = [];
   for (const [key, meta] of Object.entries(sessionsJson)) {
     // sessionFile may be missing for channel/subagent sessions — derive from sessionId
     const sessionFile = meta.sessionFile ||
-      (meta.sessionId ? path.join(SESSIONS_DIR, `${meta.sessionId}.jsonl`) : null);
+      (meta.sessionId ? path.join(meta._sourceDir || SESSIONS_DIR, `${meta.sessionId}.jsonl`) : null);
 
     // Read last 60 lines for activity extraction
     const lines = sessionFile ? await readLastLines(sessionFile, 60) : [];
@@ -370,13 +394,30 @@ async function loadOrgWithStatus() {
   // Set of all org node names (lowercase) — used to suppress ghost duplicates
   const orgNodeNames = new Set(org.nodes.map(n => n.name.toLowerCase()));
 
+  // Build lookup by agentId prefix (e.g. agent:pixel:subagent:... → agentId "pixel")
+  const byAgentId = {};
+  for (const s of sessions) {
+    const parts = s.key.split(':'); // ["agent", "pixel", "subagent", "uuid"]
+    const agentId = parts[1];
+    if (agentId && agentId !== 'main') {
+      if (!byAgentId[agentId]) byAgentId[agentId] = [];
+      byAgentId[agentId].push(s);
+    }
+  }
+
   // Enrich org nodes with most-recent live session data
   const nodes = org.nodes.map(node => {
     let liveSession = null;
+    // 1. Match by explicit agentKey
     if (node.agentKey) liveSession = byKey[node.agentKey];
+    // 2. Match by agent name label
     if (!liveSession && node.name) {
       const candidates = byLabel[node.name.toLowerCase()] || [];
-      // Pick most recently updated session for this named agent
+      liveSession = candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+    }
+    // 3. Match by agentId embedded in session key (e.g. agent:pixel:subagent:...)
+    if (!liveSession && node.id) {
+      const candidates = byAgentId[node.id.toLowerCase()] || [];
       liveSession = candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
     }
     return {
