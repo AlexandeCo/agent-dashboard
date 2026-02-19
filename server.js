@@ -705,10 +705,11 @@ app.get('/api/setup/status', (req, res) => {
 
 // POST /api/setup → writes config.json + org.json
 // Accepts:
-//   keys: { anthropic?: string, openai?: string, google?: string }  (multi-provider, new)
+//   keys: { anthropic?: string|subscriptionObj, openai?: string, ... }  (multi-provider)
 //   key + provider (single-key, backward compat)
+//   customEndpoint?: { id: 'custom', baseUrl: string, key: string }
 app.post('/api/setup', express.json(), (req, res) => {
-  const { key, keys, provider, template, nodes } = req.body || {};
+  const { key, keys, provider, template, nodes, customEndpoint } = req.body || {};
 
   // Normalise to a providers map
   const rawKeys = keys || (key ? { [provider || 'anthropic']: key } : null);
@@ -719,19 +720,28 @@ app.post('/api/setup', express.json(), (req, res) => {
   // Build per-provider objects (store key + masked version)
   const providers = {};
   for (const [prov, k] of Object.entries(rawKeys)) {
+    if (prov === 'custom') continue; // handled separately via customEndpoint
     if (k && typeof k === 'string') {
       const maskedKey = k.length > 8 ? `${k.slice(0, 4)}...${k.slice(-4)}` : '••••';
       providers[prov] = { key: k, maskedKey };
+    } else if (k && typeof k === 'object' && k.mode === 'subscription') {
+      // Anthropic subscription mode — no key stored
+      providers[prov] = { mode: 'subscription', via: k.via, maskedKey: `via ${k.via}` };
     }
   }
 
-  if (Object.keys(providers).length === 0) {
+  // Also allow custom endpoint alone as a "valid" configuration
+  const hasProviders = Object.keys(providers).length > 0;
+  const hasCustom    = !!(customEndpoint && customEndpoint.baseUrl);
+
+  if (!hasProviders && !hasCustom) {
     return res.status(400).json({ ok: false, error: 'at least one valid key required' });
   }
 
-  // For backward compat, populate top-level apiKey/provider from first entry
-  const firstProv  = Object.keys(providers)[0];
-  const firstKey   = providers[firstProv].key;
+  // For backward compat, populate top-level apiKey/provider from first string-key entry
+  const firstStringProv = Object.entries(providers).find(([, v]) => typeof v.key === 'string');
+  const firstProv  = firstStringProv?.[0] || Object.keys(providers)[0] || 'custom';
+  const firstKey   = firstStringProv?.[1]?.key || '';
 
   const cfg = {
     firstRun: false,
@@ -740,6 +750,7 @@ app.post('/api/setup', express.json(), (req, res) => {
     providers,                   // new multi-provider storage
     template,
     nodes: nodes || [],
+    ...(hasCustom ? { customEndpoint } : {}),
   };
 
   try { writeSwitchboardConfig(cfg); }
@@ -753,6 +764,11 @@ app.post('/api/setup', express.json(), (req, res) => {
 app.get('/api/validate-key', async (req, res) => {
   const { key, provider = 'anthropic' } = req.query;
   if (!key) return res.status(400).json({ ok: false, error: 'key required' });
+
+  // Providers where validateUrl is null — trust the key without external call
+  if (provider === 'google' || provider === 'minimax') {
+    return res.json({ ok: true, provider });
+  }
 
   // Build HTTPS options per provider
   let options;
@@ -770,11 +786,40 @@ app.get('/api/validate-key', async (req, res) => {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${key}` },
     };
-  } else if (provider === 'google') {
+  } else if (provider === 'groq') {
     options = {
-      hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models?key=${encodeURIComponent(key)}`,
+      hostname: 'api.groq.com',
+      path: '/openai/v1/models',
       method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+    };
+  } else if (provider === 'deepseek') {
+    options = {
+      hostname: 'api.deepseek.com',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+    };
+  } else if (provider === 'mistral') {
+    options = {
+      hostname: 'api.mistral.ai',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+    };
+  } else if (provider === 'xai') {
+    options = {
+      hostname: 'api.x.ai',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+    };
+  } else if (provider === 'moonshot') {
+    options = {
+      hostname: 'api.moonshot.cn',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
     };
   } else {
     return res.status(400).json({ ok: false, provider, error: 'unknown_provider' });
@@ -796,6 +841,29 @@ app.get('/api/validate-key', async (req, res) => {
     }
   } catch (err) {
     res.json({ ok: false, provider, error: 'network_error' });
+  }
+});
+
+// GET /api/detect/openclaw → check if ~/.openclaw/openclaw.json has valid auth
+app.get('/api/detect/openclaw', (req, res) => {
+  try {
+    const cfg = readOpenclawConfig();
+    // Has auth if there's a top-level apiKey or a providers.anthropic entry
+    const hasAuth = !!(cfg && (cfg.apiKey || (cfg.providers && cfg.providers.anthropic)));
+    res.json({ ok: hasAuth });
+  } catch {
+    res.json({ ok: false });
+  }
+});
+
+// GET /api/detect/claude-code → check if `claude` CLI is on PATH
+app.get('/api/detect/claude-code', (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    execSync('which claude', { shell: '/bin/sh', timeout: 3000, stdio: 'ignore' });
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: false });
   }
 });
 

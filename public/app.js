@@ -1,4 +1,50 @@
 /* ═══════════════════════════════════════════════════════
+   Provider Definitions (Step 2)
+═══════════════════════════════════════════════════════ */
+
+const PROVIDERS = [
+  // Tier 1
+  { id: 'anthropic', name: 'Anthropic', emoji: '🟠', desc: 'Claude Sonnet, Haiku, Opus',
+    placeholder: 'Paste your Anthropic API key (sk-ant-...)',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    validateUrl: 'https://api.anthropic.com/v1/models', authType: 'x-api-key', hasSubscription: true },
+  { id: 'openai', name: 'OpenAI', emoji: '🟢', desc: 'GPT-4o, GPT-4o mini, o3-mini',
+    placeholder: 'Paste your OpenAI API key (sk-...)',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    validateUrl: 'https://api.openai.com/v1/models', authType: 'bearer' },
+  { id: 'google', name: 'Google', emoji: '🔵', desc: 'Gemini 2.0 Flash, Gemini 2.5 Pro',
+    placeholder: 'Paste your Google AI Studio key (AIza...)',
+    keyUrl: 'https://aistudio.google.com/app/apikey',
+    validateUrl: null, authType: 'google', note: 'Free tier available' },
+  { id: 'groq', name: 'Groq', emoji: '⚡', desc: 'Fast inference: Llama, Mixtral, Gemma',
+    placeholder: 'Paste your Groq API key (gsk_...)',
+    keyUrl: 'https://console.groq.com/keys',
+    validateUrl: 'https://api.groq.com/openai/v1/models', authType: 'bearer', note: 'Free tier available' },
+  // Tier 2
+  { id: 'deepseek', name: 'DeepSeek', emoji: '🐋', desc: 'DeepSeek-V3, DeepSeek-R1',
+    placeholder: 'Paste your DeepSeek API key (sk-...)',
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+    validateUrl: 'https://api.deepseek.com/v1/models', authType: 'bearer' },
+  { id: 'mistral', name: 'Mistral', emoji: '🌊', desc: 'Mistral Large, Codestral, Pixtral',
+    placeholder: 'Paste your Mistral API key',
+    keyUrl: 'https://console.mistral.ai/api-keys/',
+    validateUrl: 'https://api.mistral.ai/v1/models', authType: 'bearer' },
+  { id: 'xai', name: 'xAI', emoji: '𝕏', desc: 'Grok-2, Grok Vision',
+    placeholder: 'Paste your xAI API key (xai-...)',
+    keyUrl: 'https://console.x.ai/',
+    validateUrl: 'https://api.x.ai/v1/models', authType: 'bearer' },
+  { id: 'moonshot', name: 'Moonshot', emoji: '🌙', desc: 'Kimi k1.5, Moonshot models',
+    placeholder: 'Paste your Moonshot API key',
+    keyUrl: 'https://platform.moonshot.cn/console/api-keys',
+    validateUrl: 'https://api.moonshot.cn/v1/models', authType: 'bearer' },
+  // Tier 3
+  { id: 'minimax', name: 'MiniMax', emoji: '🎭', desc: 'MiniMax-Text, ABAB models',
+    placeholder: 'Paste your MiniMax API key',
+    keyUrl: 'https://www.minimaxi.com/user-center/basic-information/interface-key',
+    validateUrl: null, authType: 'bearer' },
+];
+
+/* ═══════════════════════════════════════════════════════
    Wizard — Template Definitions
 ═══════════════════════════════════════════════════════ */
 
@@ -70,9 +116,201 @@ const WIZARD_TEMPLATES = {
    Wizard State & Logic
 ═══════════════════════════════════════════════════════ */
 
-const wizardState = { step: 1, keys: {}, validatedProviders: new Set(), template: null };
+const wizardState = {
+  step: 1,
+  keys: {},
+  validatedProviders: new Set(),
+  template: null,
+  anthropicMode: 'api-key',   // 'api-key' | 'subscription'
+  customEndpoint: null,        // { id: 'custom', baseUrl: '', key: '' }
+};
+
+// ── Provider Grid (Step 2) ────────────────────────────────────────────────────
+
+function renderProviderGrid() {
+  const grid = document.getElementById('provider-grid');
+  if (!grid) return;
+
+  let html = '';
+
+  for (const p of PROVIDERS) {
+    const noteHtml = p.note
+      ? `<span class="provider-card-note">${escHtml(p.note)}</span>` : '';
+
+    const subscriptionToggle = p.hasSubscription ? `
+      <div class="provider-mode-toggle">
+        <button class="pmode-btn active" id="pmode-apikey-${p.id}"
+          onclick="setAnthropicMode('api-key')">API Key</button>
+        <button class="pmode-btn" id="pmode-sub-${p.id}"
+          onclick="setAnthropicMode('subscription')">Subscription</button>
+      </div>` : '';
+
+    const btnLabel = p.validateUrl ? 'Validate' : 'Add key';
+
+    const apiKeySection = `
+      <div id="${p.id}-apikey-section">
+        <a href="${escHtml(p.keyUrl)}" target="_blank" class="provider-get-key">Get your key →</a>
+        <div class="provider-input-row">
+          <input type="password" class="provider-key-input" id="pkey-${p.id}"
+            placeholder="${escHtml(p.placeholder)}" autocomplete="off"
+            oninput="onProviderKeyInput('${p.id}')" />
+          <button class="provider-validate-btn" id="pbtn-${p.id}"
+            onclick="validateProviderKey('${p.id}')" disabled>${btnLabel}</button>
+        </div>
+      </div>`;
+
+    const subscriptionSection = p.hasSubscription ? `
+      <div id="${p.id}-subscription-section" style="display:none">
+        <div class="subscription-detect-row">
+          <button class="provider-detect-btn"
+            onclick="detectSubscription('openclaw')">Detect OpenClaw</button>
+          <button class="provider-detect-btn"
+            onclick="detectSubscription('claude-code')">Detect Claude Code</button>
+        </div>
+        <div id="${p.id}-detect-result" class="provider-detect-result" style="display:none"></div>
+      </div>` : '';
+
+    html += `
+      <div class="provider-card" id="provider-card-${p.id}">
+        <div class="provider-card-header">
+          <span class="provider-card-emoji">${p.emoji}</span>
+          <div class="provider-card-info">
+            <div class="provider-card-name">${escHtml(p.name)}${noteHtml}</div>
+            <div class="provider-card-desc">${escHtml(p.desc)}</div>
+          </div>
+          <div class="provider-card-status" id="pstatus-${p.id}" data-state="idle">—</div>
+        </div>
+        ${subscriptionToggle}
+        ${apiKeySection}
+        ${subscriptionSection}
+      </div>`;
+  }
+
+  // Custom endpoint card
+  html += `
+    <div class="provider-card" id="provider-card-custom">
+      <div class="provider-card-header">
+        <span class="provider-card-emoji">➕</span>
+        <div class="provider-card-info">
+          <div class="provider-card-name">Custom / Other</div>
+          <div class="provider-card-desc">Any OpenAI-compatible API (LiteLLM, Ollama proxy, etc.)</div>
+        </div>
+        <div class="provider-card-status" id="pstatus-custom" data-state="idle">—</div>
+      </div>
+      <div class="provider-input-col">
+        <input type="text" class="provider-key-input" id="pcustom-url"
+          placeholder="Base URL (e.g. http://localhost:4000/v1)" autocomplete="off"
+          oninput="onCustomInput()" />
+        <div class="provider-input-row" style="margin-top:8px">
+          <input type="password" class="provider-key-input" id="pcustom-key"
+            placeholder="API key (optional)" autocomplete="off" />
+          <button class="provider-validate-btn" id="pbtn-custom"
+            onclick="addCustomEndpoint()" disabled>Add</button>
+        </div>
+      </div>
+    </div>`;
+
+  grid.innerHTML = html;
+}
+
+// ── Anthropic subscription mode ───────────────────────────────────────────────
+
+function setAnthropicMode(mode) {
+  wizardState.anthropicMode = mode;
+  const apikeySection = document.getElementById('anthropic-apikey-section');
+  const subSection    = document.getElementById('anthropic-subscription-section');
+  const apikeyBtn     = document.getElementById('pmode-apikey-anthropic');
+  const subBtn        = document.getElementById('pmode-sub-anthropic');
+
+  if (mode === 'api-key') {
+    if (apikeySection) apikeySection.style.display = '';
+    if (subSection)    subSection.style.display    = 'none';
+    if (apikeyBtn)     apikeyBtn.classList.add('active');
+    if (subBtn)        subBtn.classList.remove('active');
+  } else {
+    if (apikeySection) apikeySection.style.display = 'none';
+    if (subSection)    subSection.style.display    = '';
+    if (apikeyBtn)     apikeyBtn.classList.remove('active');
+    if (subBtn)        subBtn.classList.add('active');
+  }
+
+  // Reset anthropic validation state when switching modes
+  wizardState.validatedProviders.delete('anthropic');
+  delete wizardState.keys['anthropic'];
+  setProviderStatus('anthropic', 'idle', '—');
+  const card = document.getElementById('provider-card-anthropic');
+  if (card) card.classList.remove('is-valid', 'is-invalid');
+  const inp = document.getElementById('pkey-anthropic');
+  if (inp) inp.classList.remove('is-valid', 'is-invalid');
+  updateProvidersNextBtn();
+}
+
+async function detectSubscription(via) {
+  const resultEl = document.getElementById('anthropic-detect-result');
+  const card     = document.getElementById('provider-card-anthropic');
+
+  if (resultEl) { resultEl.style.display = ''; resultEl.textContent = 'Detecting…'; resultEl.className = 'provider-detect-result is-checking'; }
+  setProviderStatus('anthropic', 'validating', 'Detecting…');
+
+  try {
+    const endpoint = via === 'openclaw' ? '/api/detect/openclaw' : '/api/detect/claude-code';
+    const res  = await fetch(endpoint);
+    const data = await res.json();
+
+    if (data.ok) {
+      wizardState.validatedProviders.add('anthropic');
+      wizardState.keys['anthropic'] = { mode: 'subscription', via };
+      setProviderStatus('anthropic', 'valid', '✓ Connected');
+      if (resultEl) {
+        resultEl.textContent = `✓ Connected via ${via === 'openclaw' ? 'OpenClaw' : 'Claude Code'}`;
+        resultEl.className = 'provider-detect-result is-success';
+      }
+      if (card) { card.classList.add('is-valid'); card.classList.remove('is-invalid'); }
+    } else {
+      wizardState.validatedProviders.delete('anthropic');
+      delete wizardState.keys['anthropic'];
+      setProviderStatus('anthropic', 'invalid', '✗ Not detected');
+      const label = via === 'openclaw' ? 'OpenClaw' : 'Claude Code';
+      if (resultEl) {
+        resultEl.textContent = `Not detected. Install ${label} first.`;
+        resultEl.className = 'provider-detect-result is-error';
+      }
+      if (card) card.classList.remove('is-valid');
+    }
+  } catch {
+    setProviderStatus('anthropic', 'invalid', '✗ Error');
+    if (resultEl) { resultEl.textContent = 'Detection failed. Try again.'; resultEl.className = 'provider-detect-result is-error'; }
+  }
+
+  updateProvidersNextBtn();
+}
+
+// ── Custom endpoint ───────────────────────────────────────────────────────────
+
+function onCustomInput() {
+  const urlInput = document.getElementById('pcustom-url');
+  const btn      = document.getElementById('pbtn-custom');
+  if (btn) btn.disabled = !(urlInput?.value.trim());
+}
+
+function addCustomEndpoint() {
+  const urlInput = document.getElementById('pcustom-url');
+  const keyInput = document.getElementById('pcustom-key');
+  const card     = document.getElementById('provider-card-custom');
+  const baseUrl  = urlInput?.value.trim() || '';
+  const key      = keyInput?.value.trim() || '';
+  if (!baseUrl) return;
+
+  wizardState.customEndpoint = { id: 'custom', baseUrl, key };
+  wizardState.validatedProviders.add('custom');
+
+  setProviderStatus('custom', 'valid', '✓ Added');
+  if (card) { card.classList.add('is-valid'); card.classList.remove('is-invalid'); }
+  updateProvidersNextBtn();
+}
 
 async function initApp() {
+  renderProviderGrid();
   try {
     const res  = await fetch('/api/setup/status');
     const data = await res.json();
@@ -138,15 +376,25 @@ async function validateProviderKey(provider) {
   const key   = input?.value.trim() || '';
   if (!key) return;
 
+  // Look up provider config to check validateUrl
+  const providerConfig = PROVIDERS.find(p => p.id === provider);
+  const hasValidateUrl = providerConfig ? !!providerConfig.validateUrl : true;
+
   // UI: validating state
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  setProviderStatus(provider, 'validating', 'Validating…');
+  setProviderStatus(provider, 'validating', hasValidateUrl ? 'Validating…' : 'Saving…');
   if (input) input.classList.remove('is-valid', 'is-invalid');
   if (card)  card.classList.remove('is-valid', 'is-invalid');
 
   try {
-    const res  = await fetch(`/api/validate-key?key=${encodeURIComponent(key)}&provider=${encodeURIComponent(provider)}`);
-    const data = await res.json();
+    // For providers without a validateUrl (google, minimax), trust immediately
+    let data;
+    if (!hasValidateUrl) {
+      data = { ok: true, provider };
+    } else {
+      const res = await fetch(`/api/validate-key?key=${encodeURIComponent(key)}&provider=${encodeURIComponent(provider)}`);
+      data = await res.json();
+    }
 
     if (data.ok) {
       wizardState.validatedProviders.add(provider);
@@ -169,7 +417,8 @@ async function validateProviderKey(provider) {
     if (input) input.classList.add('is-invalid');
     if (card)  card.classList.add('is-invalid');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Validate'; }
+    const btnLabel = providerConfig?.validateUrl ? 'Validate' : 'Add key';
+    if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
     updateProvidersNextBtn();
   }
 }
@@ -191,11 +440,21 @@ async function wizardSetupTemplate() {
   btn.disabled    = true;
 
   try {
+    // Build clean keys map — only string keys (subscription goes as special object)
+    const keysToSave = {};
+    for (const [prov, val] of Object.entries(wizardState.keys)) {
+      keysToSave[prov] = val;
+    }
+
     const res  = await fetch('/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: wizardState.keys,
-                             template: wizardState.template, nodes }),
+      body: JSON.stringify({
+        keys: keysToSave,
+        template: wizardState.template,
+        nodes,
+        customEndpoint: wizardState.customEndpoint || null,
+      }),
     });
     const data = await res.json();
 

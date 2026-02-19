@@ -159,69 +159,9 @@
       <div class="wizard-card wizard-card-wide">
         <div class="wizard-step-indicator">Step 2 of 4</div>
         <h2>Enter your API keys</h2>
-        <p>Add a key for each AI provider you use. At least one is required. Keys are stored locally and never leave your machine.</p>
-        <div class="provider-cards">
-
-          <!-- Anthropic -->
-          <div class="provider-card" id="provider-card-anthropic">
-            <div class="provider-card-header">
-              <span class="provider-card-emoji">🟠</span>
-              <div class="provider-card-info">
-                <div class="provider-card-name">Anthropic</div>
-                <div class="provider-card-desc">Claude models (Sonnet, Haiku, Opus)</div>
-              </div>
-              <div class="provider-card-status" id="pstatus-anthropic" data-state="idle">—</div>
-            </div>
-            <a href="https://console.anthropic.com/settings/keys" target="_blank" class="provider-get-key">Get your key →</a>
-            <div class="provider-input-row">
-              <input type="password" class="provider-key-input" id="pkey-anthropic"
-                placeholder="Paste your Anthropic API key (sk-ant-...)" autocomplete="off"
-                oninput="onProviderKeyInput('anthropic')" />
-              <button class="provider-validate-btn" id="pbtn-anthropic"
-                onclick="validateProviderKey('anthropic')" disabled>Validate</button>
-            </div>
-          </div>
-
-          <!-- OpenAI -->
-          <div class="provider-card" id="provider-card-openai">
-            <div class="provider-card-header">
-              <span class="provider-card-emoji">🟢</span>
-              <div class="provider-card-info">
-                <div class="provider-card-name">OpenAI</div>
-                <div class="provider-card-desc">GPT-4o, GPT-4o mini, o3-mini</div>
-              </div>
-              <div class="provider-card-status" id="pstatus-openai" data-state="idle">—</div>
-            </div>
-            <a href="https://platform.openai.com/api-keys" target="_blank" class="provider-get-key">Get your key →</a>
-            <div class="provider-input-row">
-              <input type="password" class="provider-key-input" id="pkey-openai"
-                placeholder="Paste your OpenAI API key (sk-...)" autocomplete="off"
-                oninput="onProviderKeyInput('openai')" />
-              <button class="provider-validate-btn" id="pbtn-openai"
-                onclick="validateProviderKey('openai')" disabled>Validate</button>
-            </div>
-          </div>
-
-          <!-- Google -->
-          <div class="provider-card" id="provider-card-google">
-            <div class="provider-card-header">
-              <span class="provider-card-emoji">🔵</span>
-              <div class="provider-card-info">
-                <div class="provider-card-name">Google</div>
-                <div class="provider-card-desc">Gemini 2.0 Flash, Gemini 2.5 Pro</div>
-              </div>
-              <div class="provider-card-status" id="pstatus-google" data-state="idle">—</div>
-            </div>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="provider-get-key">Get your key →</a>
-            <div class="provider-input-row">
-              <input type="password" class="provider-key-input" id="pkey-google"
-                placeholder="Paste your Google AI Studio key (AIza...)" autocomplete="off"
-                oninput="onProviderKeyInput('google')" />
-              <button class="provider-validate-btn" id="pbtn-google"
-                onclick="validateProviderKey('google')" disabled>Validate</button>
-            </div>
-          </div>
-
+        <p>Connect at least one provider. Keys are stored locally and never leave your machine.</p>
+        <div class="provider-grid" id="provider-grid">
+          <!-- Filled by renderProviderGrid() in app.js -->
         </div>
         <p class="wizard-input-hint" style="margin-top:16px;text-align:left">Saved to ~/.switchboard/config.json — never transmitted</p>
         <button class="wizard-btn primary" id="wizard-providers-next-btn" onclick="wizardNext(3)" disabled style="margin-top:20px">Next →</button>
