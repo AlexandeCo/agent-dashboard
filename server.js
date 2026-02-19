@@ -678,25 +678,70 @@ function writeSwitchboardConfig(cfg) {
   fs.writeFileSync(SWITCHBOARD_CONFIG, JSON.stringify(cfg, null, 2), 'utf8');
 }
 
-// GET /api/setup/status → { firstRun: bool, maskedKey: string|null }
+// GET /api/setup/status → { firstRun: bool, maskedKey: string|null, providers: object|null }
 app.get('/api/setup/status', (req, res) => {
   const cfg = readSwitchboardConfig();
   const firstRun = !cfg || cfg.firstRun === true;
+
+  // Build masked display from multi-provider config if available
   let maskedKey = null;
-  if (cfg && cfg.apiKey) {
+  let providers = null;
+  if (cfg && cfg.providers && typeof cfg.providers === 'object') {
+    providers = {};
+    for (const [prov, info] of Object.entries(cfg.providers)) {
+      providers[prov] = info.maskedKey || '••••';
+    }
+    // maskedKey = summary of connected providers
+    const names = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
+    maskedKey = Object.keys(providers).map(p => names[p] || p).join(', ');
+  } else if (cfg && cfg.apiKey) {
+    // Backward compat: single key
     const k = cfg.apiKey;
-    maskedKey = k.length > 4 ? `sk-...${k.slice(-4)}` : '••••';
+    maskedKey = k.length > 8 ? `${k.slice(0, 4)}...${k.slice(-4)}` : '••••';
   }
-  res.json({ firstRun, maskedKey, template: cfg?.template || null });
+
+  res.json({ firstRun, maskedKey, providers, template: cfg?.template || null });
 });
 
 // POST /api/setup → writes config.json + org.json
+// Accepts:
+//   keys: { anthropic?: string, openai?: string, google?: string }  (multi-provider, new)
+//   key + provider (single-key, backward compat)
 app.post('/api/setup', express.json(), (req, res) => {
-  const { key, provider, template, nodes } = req.body || {};
-  if (!key || !template) {
-    return res.status(400).json({ ok: false, error: 'key and template required' });
+  const { key, keys, provider, template, nodes } = req.body || {};
+
+  // Normalise to a providers map
+  const rawKeys = keys || (key ? { [provider || 'anthropic']: key } : null);
+  if (!rawKeys || !template) {
+    return res.status(400).json({ ok: false, error: 'at least one key and template required' });
   }
-  const cfg = { firstRun: false, apiKey: key, provider: provider || 'anthropic', template, nodes: nodes || [] };
+
+  // Build per-provider objects (store key + masked version)
+  const providers = {};
+  for (const [prov, k] of Object.entries(rawKeys)) {
+    if (k && typeof k === 'string') {
+      const maskedKey = k.length > 8 ? `${k.slice(0, 4)}...${k.slice(-4)}` : '••••';
+      providers[prov] = { key: k, maskedKey };
+    }
+  }
+
+  if (Object.keys(providers).length === 0) {
+    return res.status(400).json({ ok: false, error: 'at least one valid key required' });
+  }
+
+  // For backward compat, populate top-level apiKey/provider from first entry
+  const firstProv  = Object.keys(providers)[0];
+  const firstKey   = providers[firstProv].key;
+
+  const cfg = {
+    firstRun: false,
+    apiKey:   firstKey,          // backward compat
+    provider: firstProv,         // backward compat
+    providers,                   // new multi-provider storage
+    template,
+    nodes: nodes || [],
+  };
+
   try { writeSwitchboardConfig(cfg); }
   catch (err) { return res.status(500).json({ ok: false, error: 'Failed to write config' }); }
   try { fs.writeFileSync(ORG_CONFIG, JSON.stringify({ nodes: nodes || [] }, null, 2), 'utf8'); }
@@ -704,31 +749,53 @@ app.post('/api/setup', express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/validate-key → proxies to Anthropic, returns { ok, error? }
+// GET /api/validate-key → proxies to provider API, returns { ok, provider, error? }
 app.get('/api/validate-key', async (req, res) => {
-  const key = req.query.key;
+  const { key, provider = 'anthropic' } = req.query;
   if (!key) return res.status(400).json({ ok: false, error: 'key required' });
+
+  // Build HTTPS options per provider
+  let options;
+  if (provider === 'anthropic') {
+    options = {
+      hostname: 'api.anthropic.com',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    };
+  } else if (provider === 'openai') {
+    options = {
+      hostname: 'api.openai.com',
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+    };
+  } else if (provider === 'google') {
+    options = {
+      hostname: 'generativelanguage.googleapis.com',
+      path: `/v1beta/models?key=${encodeURIComponent(key)}`,
+      method: 'GET',
+    };
+  } else {
+    return res.status(400).json({ ok: false, provider, error: 'unknown_provider' });
+  }
+
   try {
     const https = require('https');
     const statusCode = await new Promise((resolve, reject) => {
-      const r = https.request({
-        hostname: 'api.anthropic.com',
-        path: '/v1/models',
-        method: 'GET',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      }, (resp) => { resp.resume(); resolve(resp.statusCode); });
+      const r = https.request(options, (resp) => { resp.resume(); resolve(resp.statusCode); });
       r.on('error', reject);
       r.setTimeout(8000, () => { r.destroy(); reject(new Error('timeout')); });
       r.end();
     });
     if (statusCode === 200) {
-      res.json({ ok: true });
+      res.json({ ok: true, provider });
     } else {
       const errType = (statusCode === 401 || statusCode === 403) ? 'invalid_key' : `http_${statusCode}`;
-      res.json({ ok: false, error: errType });
+      res.json({ ok: false, provider, error: errType });
     }
   } catch (err) {
-    res.json({ ok: false, error: 'network_error' });
+    res.json({ ok: false, provider, error: 'network_error' });
   }
 });
 

@@ -154,19 +154,74 @@
       </div>
     </div>
 
-    <!-- Step 2: API Key -->
+    <!-- Step 2: AI Providers -->
     <div id="wizard-step-2" class="wizard-step">
-      <div class="wizard-card">
+      <div class="wizard-card wizard-card-wide">
         <div class="wizard-step-indicator">Step 2 of 4</div>
-        <h2>Connect your OpenClaw key</h2>
-        <p>Switchboard uses this to validate your agents. Your key is stored locally and never leaves your machine.</p>
-        <div class="wizard-input-group">
-          <input type="password" id="wizard-key-input" placeholder="sk-ant-..." autocomplete="off"
-            oninput="onKeyInput(this.value)" />
-          <div class="wizard-input-hint">Saved to ~/.switchboard/config.json — never transmitted</div>
-          <div id="wizard-key-error" class="wizard-error" style="display:none"></div>
+        <h2>Connect your AI providers</h2>
+        <p>Add keys for the providers you use. At least one is required. Keys are stored locally and never leave your machine.</p>
+        <div class="provider-cards">
+
+          <!-- Anthropic -->
+          <div class="provider-card" id="provider-card-anthropic">
+            <div class="provider-card-header">
+              <span class="provider-card-emoji">🟠</span>
+              <div class="provider-card-info">
+                <div class="provider-card-name">Anthropic</div>
+                <div class="provider-card-desc">Claude models (Sonnet, Haiku, Opus)</div>
+              </div>
+              <div class="provider-card-status" id="pstatus-anthropic" data-state="idle">—</div>
+            </div>
+            <div class="provider-input-row">
+              <input type="password" class="provider-key-input" id="pkey-anthropic"
+                placeholder="sk-ant-..." autocomplete="off"
+                oninput="onProviderKeyInput('anthropic')" />
+              <button class="provider-validate-btn" id="pbtn-anthropic"
+                onclick="validateProviderKey('anthropic')" disabled>Validate</button>
+            </div>
+          </div>
+
+          <!-- OpenAI -->
+          <div class="provider-card" id="provider-card-openai">
+            <div class="provider-card-header">
+              <span class="provider-card-emoji">🟢</span>
+              <div class="provider-card-info">
+                <div class="provider-card-name">OpenAI</div>
+                <div class="provider-card-desc">GPT-4o, GPT-4o mini, o3-mini</div>
+              </div>
+              <div class="provider-card-status" id="pstatus-openai" data-state="idle">—</div>
+            </div>
+            <div class="provider-input-row">
+              <input type="password" class="provider-key-input" id="pkey-openai"
+                placeholder="sk-..." autocomplete="off"
+                oninput="onProviderKeyInput('openai')" />
+              <button class="provider-validate-btn" id="pbtn-openai"
+                onclick="validateProviderKey('openai')" disabled>Validate</button>
+            </div>
+          </div>
+
+          <!-- Google -->
+          <div class="provider-card" id="provider-card-google">
+            <div class="provider-card-header">
+              <span class="provider-card-emoji">🔵</span>
+              <div class="provider-card-info">
+                <div class="provider-card-name">Google</div>
+                <div class="provider-card-desc">Gemini 2.0 Flash, Gemini 2.5 Pro</div>
+              </div>
+              <div class="provider-card-status" id="pstatus-google" data-state="idle">—</div>
+            </div>
+            <div class="provider-input-row">
+              <input type="password" class="provider-key-input" id="pkey-google"
+                placeholder="AIza..." autocomplete="off"
+                oninput="onProviderKeyInput('google')" />
+              <button class="provider-validate-btn" id="pbtn-google"
+                onclick="validateProviderKey('google')" disabled>Validate</button>
+            </div>
+          </div>
+
         </div>
-        <button class="wizard-btn primary" id="wizard-verify-btn" onclick="wizardVerifyKey()" disabled>Verify &amp; continue</button>
+        <p class="wizard-input-hint" style="margin-top:16px;text-align:left">Saved to ~/.switchboard/config.json — never transmitted</p>
+        <button class="wizard-btn primary" id="wizard-providers-next-btn" onclick="wizardNext(3)" disabled style="margin-top:20px">Next →</button>
       </div>
     </div>
 

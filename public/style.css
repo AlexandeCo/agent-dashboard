@@ -1421,6 +1421,147 @@ code, .mono {
 
 .wizard-btn.success { background: var(--green); color: #fff; }
 
+/* ── Provider Cards (Step 2) ── */
+.provider-cards {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.provider-card {
+  flex: 1;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 16px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+}
+
+.provider-card.is-valid {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.18), inset 0 0 0 1px rgba(34,197,94,0.06);
+}
+
+.provider-card.is-invalid {
+  border-color: var(--red);
+}
+
+.provider-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.provider-card-emoji {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.provider-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.provider-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.provider-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.provider-card-status {
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--surface3);
+  color: var(--text-dim);
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.provider-card-status[data-state="validating"] {
+  color: var(--amber);
+  background: var(--amber-dim);
+}
+
+.provider-card-status[data-state="valid"] {
+  color: var(--green-text);
+  background: var(--green-dim);
+}
+
+.provider-card-status[data-state="invalid"] {
+  color: #fca5a5;
+  background: var(--red-dim);
+}
+
+.provider-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.provider-key-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.provider-key-input:focus { border-color: var(--accent); }
+.provider-key-input.is-valid   { border-color: var(--green); }
+.provider-key-input.is-invalid { border-color: var(--red); }
+
+.provider-validate-btn {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.provider-validate-btn:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.provider-validate-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .provider-cards {
+    flex-direction: column;
+  }
+}
+
 /* Key input */
 .wizard-input-group {
   margin-bottom: 20px;

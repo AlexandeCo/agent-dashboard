@@ -70,7 +70,7 @@ const WIZARD_TEMPLATES = {
    Wizard State & Logic
 ═══════════════════════════════════════════════════════ */
 
-const wizardState = { step: 1, key: '', template: null };
+const wizardState = { step: 1, keys: {}, validatedProviders: new Set(), template: null };
 
 async function initApp() {
   try {
@@ -100,56 +100,77 @@ function wizardNext(step) {
   wizardState.step = step;
 }
 
-function onKeyInput(val) {
-  wizardState.key = val.trim();
-  document.getElementById('wizard-verify-btn').disabled = wizardState.key.length === 0;
-  document.getElementById('wizard-key-error').style.display = 'none';
-  document.getElementById('wizard-key-input').classList.remove('error');
+// ── Multi-provider wizard (Step 2) ────────────────────────────────────────────
+
+function onProviderKeyInput(provider) {
+  const input = document.getElementById(`pkey-${provider}`);
+  const btn   = document.getElementById(`pbtn-${provider}`);
+  const val   = input?.value.trim() || '';
+  if (btn) btn.disabled = val.length === 0;
+  // If user edits a previously validated key, reset its state
+  if (wizardState.validatedProviders.has(provider)) {
+    wizardState.validatedProviders.delete(provider);
+    delete wizardState.keys[provider];
+    setProviderStatus(provider, 'idle', '—');
+    const card = document.getElementById(`provider-card-${provider}`);
+    if (card) { card.classList.remove('is-valid', 'is-invalid'); }
+    if (input) { input.classList.remove('is-valid', 'is-invalid'); }
+    updateProvidersNextBtn();
+  }
 }
 
-async function wizardVerifyKey() {
-  const key = document.getElementById('wizard-key-input').value.trim();
+function setProviderStatus(provider, state, text) {
+  const el = document.getElementById(`pstatus-${provider}`);
+  if (!el) return;
+  el.dataset.state = state;
+  el.textContent   = text;
+}
+
+function updateProvidersNextBtn() {
+  const btn = document.getElementById('wizard-providers-next-btn');
+  if (btn) btn.disabled = wizardState.validatedProviders.size === 0;
+}
+
+async function validateProviderKey(provider) {
+  const input = document.getElementById(`pkey-${provider}`);
+  const btn   = document.getElementById(`pbtn-${provider}`);
+  const card  = document.getElementById(`provider-card-${provider}`);
+  const key   = input?.value.trim() || '';
   if (!key) return;
 
-  const btn   = document.getElementById('wizard-verify-btn');
-  const err   = document.getElementById('wizard-key-error');
-  const input = document.getElementById('wizard-key-input');
-
-  btn.textContent = 'Verifying…';
-  btn.disabled    = true;
-  err.style.display = 'none';
-  input.classList.remove('error');
+  // UI: validating state
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  setProviderStatus(provider, 'validating', 'Validating…');
+  if (input) input.classList.remove('is-valid', 'is-invalid');
+  if (card)  card.classList.remove('is-valid', 'is-invalid');
 
   try {
-    const res  = await fetch(`/api/validate-key?key=${encodeURIComponent(key)}`);
+    const res  = await fetch(`/api/validate-key?key=${encodeURIComponent(key)}&provider=${encodeURIComponent(provider)}`);
     const data = await res.json();
 
     if (data.ok) {
-      wizardState.key = key;
-      btn.textContent = '✓ Verified';
-      btn.classList.remove('primary');
-      btn.classList.add('success');
-      setTimeout(() => {
-        btn.textContent = 'Verify & continue';
-        btn.classList.remove('success');
-        btn.classList.add('primary');
-        wizardNext(3);
-      }, 800);
+      wizardState.validatedProviders.add(provider);
+      wizardState.keys[provider] = key;
+      setProviderStatus(provider, 'valid', '✓ Connected');
+      if (input) input.classList.add('is-valid');
+      if (card)  card.classList.add('is-valid');
     } else {
-      input.classList.add('error');
-      err.style.display  = 'block';
-      err.textContent    = data.error === 'invalid_key'
-        ? 'Invalid key. Double-check it and try again.'
-        : "Couldn't reach the API. Make sure OpenClaw is running.";
-      btn.textContent = 'Verify & continue';
-      btn.disabled    = false;
+      wizardState.validatedProviders.delete(provider);
+      delete wizardState.keys[provider];
+      const errText = data.error === 'invalid_key' ? '✗ Invalid key' : '✗ Unreachable';
+      setProviderStatus(provider, 'invalid', errText);
+      if (input) input.classList.add('is-invalid');
+      if (card)  card.classList.add('is-invalid');
     }
   } catch {
-    input.classList.add('error');
-    err.style.display = 'block';
-    err.textContent   = "Couldn't reach the API. Make sure OpenClaw is running.";
-    btn.textContent   = 'Verify & continue';
-    btn.disabled      = false;
+    wizardState.validatedProviders.delete(provider);
+    delete wizardState.keys[provider];
+    setProviderStatus(provider, 'invalid', '✗ Network error');
+    if (input) input.classList.add('is-invalid');
+    if (card)  card.classList.add('is-invalid');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Validate'; }
+    updateProvidersNextBtn();
   }
 }
 
@@ -173,7 +194,7 @@ async function wizardSetupTemplate() {
     const res  = await fetch('/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: wizardState.key, provider: 'anthropic',
+      body: JSON.stringify({ keys: wizardState.keys,
                              template: wizardState.template, nodes }),
     });
     const data = await res.json();
