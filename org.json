@@ -24,7 +24,7 @@
       "emoji": "\ud83d\udd27",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/iris",
-      "parentId": "ferdinand",
+      "parentId": "arch",
       "specialty": "Technical strategy \u00b7 Engineering"
     },
     {
@@ -34,7 +34,7 @@
       "emoji": "\ud83d\udcd0",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/sage",
-      "parentId": "ferdinand",
+      "parentId": "arch",
       "specialty": "Product \u00b7 Design \u00b7 UX"
     },
     {
@@ -44,7 +44,7 @@
       "emoji": "\u2699\ufe0f",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/nova",
-      "parentId": "ferdinand",
+      "parentId": "arch",
       "specialty": "Operations \u00b7 Process \u00b7 Execution"
     },
     {
@@ -54,7 +54,7 @@
       "emoji": "\ud83d\udcca",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/ledger",
-      "parentId": "ferdinand",
+      "parentId": "arch",
       "specialty": "Token costs \u00b7 ROI \u00b7 Budget"
     },
     {
@@ -114,7 +114,7 @@
       "emoji": "\ud83d\udce3",
       "type": "agent",
       "workspace": "/Users/ferdinand/Projects/agents/mara",
-      "parentId": "ferdinand",
+      "parentId": "arch",
       "specialty": "Positioning \u00b7 Messaging \u00b7 Growth"
     },
     {
