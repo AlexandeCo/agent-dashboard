@@ -529,14 +529,139 @@ async function onSessionChange() {
 watcher.on('change', onSessionChange);
 watcher.on('add', onSessionChange);
 
-// ── Stub: per-agent model (Slate will implement persistence) ──────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const OPENCLAW_CONFIG = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+
+function readOpenclawConfig() {
+  try {
+    const raw = fs.readFileSync(OPENCLAW_CONFIG, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function writeOpenclawConfig(config) {
+  fs.writeFileSync(OPENCLAW_CONFIG, JSON.stringify(config, null, 2), 'utf8');
+}
+
+// ── PATCH /api/agents/:agentId/model ─────────────────────────────────────────
 app.patch('/api/agents/:agentId/model', express.json(), (req, res) => {
-  res.json({ ok: true, pending: 'slate', agentId: req.params.agentId, model: req.body?.model });
+  const { agentId } = req.params;
+  const { model } = req.body || {};
+
+  if (agentId === 'main') {
+    return res.status(400).json({ ok: false, error: 'Cannot modify main agent via UI' });
+  }
+
+  const config = readOpenclawConfig();
+  if (!config) {
+    return res.status(500).json({ ok: false, error: 'config not found' });
+  }
+
+  // Ensure agents.list exists
+  if (!config.agents) config.agents = {};
+  if (!Array.isArray(config.agents.list)) config.agents.list = [];
+
+  const list = config.agents.list;
+  const existing = list.find(a => a.id === agentId);
+  if (existing) {
+    existing.model = model;
+  } else {
+    list.push({ id: agentId, model });
+  }
+
+  try {
+    writeOpenclawConfig(config);
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'failed to write config' });
+  }
+
+  // Hot-reload OpenClaw — best-effort, don't fail the request if signal fails
+  try {
+    const { execSync } = require('child_process');
+    execSync('kill -USR1 $(pgrep -f "openclaw")', { shell: '/bin/sh' });
+  } catch (_) {}
+
+  res.json({ ok: true, agentId, model });
 });
 
-// ── Stub: per-agent API key (Slate will implement persistence) ─────────────────
+// ── PATCH /api/agents/:agentId/apikey ────────────────────────────────────────
 app.patch('/api/agents/:agentId/apikey', express.json(), (req, res) => {
-  res.json({ ok: true, pending: 'slate', agentId: req.params.agentId });
+  const { agentId } = req.params;
+  const { provider, key } = req.body || {};
+
+  if (agentId === 'main') {
+    return res.status(400).json({ ok: false, error: 'Cannot modify main agent via UI' });
+  }
+
+  const config = readOpenclawConfig();
+  if (!config) {
+    return res.status(500).json({ ok: false, error: 'config not found' });
+  }
+
+  // Determine agentDir: prefer value from agents.list, fallback to default path
+  const agentEntry = (config.agents?.list || []).find(a => a.id === agentId);
+  const agentDir = agentEntry?.agentDir
+    || path.join(os.homedir(), '.openclaw', 'agents', agentId, 'agent');
+
+  const authProfilesPath = path.join(agentDir, 'auth-profiles.json');
+
+  // Read existing profiles (create empty object if missing)
+  let profiles = {};
+  try {
+    profiles = JSON.parse(fs.readFileSync(authProfilesPath, 'utf8'));
+  } catch {
+    // File missing or invalid — start fresh
+    profiles = {};
+  }
+
+  // Upsert the profile entry — key is never logged
+  const profileKey = `${provider}:${agentId}`;
+  profiles[profileKey] = { provider, mode: 'api_key', key };
+
+  try {
+    // Ensure agentDir exists before writing
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(authProfilesPath, JSON.stringify(profiles, null, 2), 'utf8');
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'failed to write auth-profiles' });
+  }
+
+  res.json({ ok: true, agentId, provider });
+});
+
+// ── GET /api/agents/:agentId/config ──────────────────────────────────────────
+app.get('/api/agents/:agentId/config', (req, res) => {
+  const { agentId } = req.params;
+
+  const config = readOpenclawConfig();
+  if (!config) {
+    return res.status(500).json({ ok: false, error: 'config not found' });
+  }
+
+  // Current model from agents.list
+  const agentEntry = (config.agents?.list || []).find(a => a.id === agentId);
+  const model = agentEntry?.model || null;
+
+  // Check whether any custom key exists in auth-profiles.json
+  const agentDir = agentEntry?.agentDir
+    || path.join(os.homedir(), '.openclaw', 'agents', agentId, 'agent');
+  const authProfilesPath = path.join(agentDir, 'auth-profiles.json');
+
+  let hasCustomKey = false;
+  try {
+    const profiles = JSON.parse(fs.readFileSync(authProfilesPath, 'utf8'));
+    // hasCustomKey = true if any entry for this agent exists with a non-empty key
+    hasCustomKey = Object.entries(profiles).some(
+      ([k, v]) => k.endsWith(`:${agentId}`) && v.key
+    );
+  } catch {
+    hasCustomKey = false;
+  }
+
+  res.json({ model, hasCustomKey });
 });
 
 app.listen(PORT, '127.0.0.1', () => {
