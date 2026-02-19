@@ -1,8 +1,34 @@
-# 🦉 Switchboard
+# 🛂 Switchboard
 
-> *Live monitoring and org chart for your AI agent team. See what every agent is doing, right now.*
+> *Live monitoring and org chart for your AI agent team. See who's active, what they're working on, and manage model assignments — right now.*
 
 ![Switchboard](https://github.com/AlexandeCo/switchboard/raw/main/docs/preview.png)
+
+## Setup (any machine)
+
+```bash
+git clone https://github.com/AlexandeCo/switchboard.git
+cd switchboard
+./setup.sh
+npm start
+```
+
+The setup script auto-detects your environment:
+- **OpenClaw** → registers all 11 agents with proper workspaces, auth, and config
+- **Claude Code** → creates `CLAUDE.md` files for each agent workspace so Claude Code picks up each agent's identity automatically
+
+Open `http://localhost:4242` to see your org chart.
+
+### Claude Code users
+
+After running `./setup.sh`, each agent lives at `~/Projects/agents/{name}/` with a `CLAUDE.md`.  
+To work as a specific agent: open Claude Code in that agent's directory, or set `--project ~/Projects/agents/{name}`.
+
+```bash
+# Example: spawn Pixel to work on frontend
+cd ~/Projects/agents/pixel
+claude  # Claude Code reads CLAUDE.md → becomes Pixel automatically
+```
 
 *(screenshot coming soon)*
 

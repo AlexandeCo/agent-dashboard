@@ -1004,6 +1004,296 @@ code, .mono {
   color: #e74c3c;
 }
 
+/* ═══════════════════════════════════════════════════════
+   Provider Badges (Feature 3 — multi-provider indicator)
+═══════════════════════════════════════════════════════ */
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.provider-badge-anthropic {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.provider-badge-openai {
+  background: rgba(34, 197, 94, 0.10);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+.provider-badge-google {
+  background: rgba(59, 130, 246, 0.10);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+}
+
+.provider-badge-unknown {
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Card model row — shown below card-type */
+.card-model-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.card-model-name {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Success flash on card */
+@keyframes card-flash-green {
+  0%   { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-dim), var(--shadow-md); }
+  60%  { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-dim), var(--shadow-md); }
+  100% { border-color: var(--border-subtle); box-shadow: none; }
+}
+
+.agent-card.card-success {
+  animation: card-flash-green 0.8s ease forwards;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Model Picker (Feature 1)
+═══════════════════════════════════════════════════════ */
+.model-picker {
+  position: relative;
+}
+
+.model-picker-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  text-align: left;
+  gap: 8px;
+}
+
+.model-picker-trigger:hover {
+  border-color: var(--accent-border);
+  background: var(--surface2);
+}
+
+.model-picker-trigger-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.model-picker-current {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-picker-chevron {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.model-picker.is-open .model-picker-chevron {
+  transform: rotate(180deg);
+}
+
+.model-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  overflow: hidden;
+  display: none;
+}
+
+.model-picker.is-open .model-picker-dropdown {
+  display: block;
+}
+
+.model-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-dim);
+  padding: 8px 12px 4px;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.08s;
+}
+
+.model-option:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+.model-option.is-selected {
+  color: var(--accent-text);
+  background: var(--accent-dim);
+}
+
+.model-option.is-selected::before {
+  content: '✓';
+  font-size: 10px;
+  color: var(--accent);
+  width: 10px;
+  flex-shrink: 0;
+}
+
+.model-option:not(.is-selected)::before {
+  content: '';
+  width: 10px;
+  flex-shrink: 0;
+}
+
+.model-picker-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 2px 0;
+}
+
+.model-save-feedback {
+  font-size: 11px;
+  color: var(--green-text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 0 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.model-save-feedback.is-visible {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   API Key Section (Feature 2)
+═══════════════════════════════════════════════════════ */
+.apikey-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.apikey-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+  transition: border-color 0.12s;
+  min-width: 0;
+}
+
+.apikey-input::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.apikey-input:focus {
+  border-color: var(--accent-border);
+}
+
+.apikey-save-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.12s, transform 0.1s;
+}
+
+.apikey-save-btn:hover {
+  opacity: 0.88;
+}
+
+.apikey-save-btn:active {
+  transform: scale(0.97);
+}
+
+.apikey-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.apikey-helper {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.apikey-feedback {
+  font-size: 11px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.apikey-feedback.is-visible {
+  opacity: 1;
+}
+
+.apikey-feedback.is-success { color: var(--green-text); }
+.apikey-feedback.is-error   { color: #fca5a5; }
+
+/* ─── Dismiss in sidebar row ─────────────────────────────── */
 /* Dismiss in sidebar row */
 .agent-row-dismiss {
   width: 18px;
