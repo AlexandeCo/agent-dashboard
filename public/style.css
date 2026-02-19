@@ -1772,3 +1772,13 @@ code, .mono {
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
 }
+
+/* Provider "Get your key" links — wizard step 2 */
+.provider-get-key {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  text-decoration: none;
+  display: block;
+  margin-bottom: 8px;
+}
+.provider-get-key:hover { color: var(--accent, #f5a623); text-decoration: underline; }
